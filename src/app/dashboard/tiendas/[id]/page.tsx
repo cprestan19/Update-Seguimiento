@@ -35,6 +35,8 @@ type StoreDetail = {
   auditorInv: Person | null;
   tiempoEstimadoMin: number;
   duracionRealMin: number | null;
+  inventarioInicial: number | null;
+  inventarioFinal: number | null;
   checklist: ChecklistRow[];
   incidents: Incident[];
 };
@@ -58,6 +60,8 @@ export default function StoreDetailPage() {
   const [auditoresInv, setAuditoresInv] = useState<Person[]>([]);
   const [newIncidentText, setNewIncidentText] = useState("");
   const [newIncidentSev, setNewIncidentSev] = useState("MEDIA");
+  const [inventarioInicial, setInventarioInicial] = useState("");
+  const [inventarioFinal, setInventarioFinal] = useState("");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/stores/${id}`);
@@ -67,6 +71,14 @@ export default function StoreDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!store) return;
+    setInventarioInicial(store.inventarioInicial != null ? String(store.inventarioInicial) : "");
+    setInventarioFinal(store.inventarioFinal != null ? String(store.inventarioFinal) : "");
+    // Solo re-sincroniza al cambiar de tienda, para no pisar lo que el usuario está escribiendo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store?.id]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -123,6 +135,23 @@ export default function StoreDetailPage() {
     load();
   }
 
+  async function saveInventario(field: "inventarioInicial" | "inventarioFinal", value: string) {
+    await fetch(`/api/stores/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value === "" ? null : Number(value) }),
+    });
+  }
+
+  const inventarioNum = {
+    inicial: inventarioInicial === "" ? null : Number(inventarioInicial),
+    final: inventarioFinal === "" ? null : Number(inventarioFinal),
+  };
+  const inventarioCoincide =
+    inventarioNum.inicial != null && inventarioNum.final != null
+      ? inventarioNum.inicial === inventarioNum.final
+      : null;
+
   return (
     <div className="max-w-2xl">
       <button onClick={() => router.push("/dashboard")} className="text-xs text-muted hover:text-text mb-4">
@@ -172,6 +201,43 @@ export default function StoreDetailPage() {
             {store.duracionRealMin != null ? `${store.duracionRealMin} min reales` : `Est. ${store.tiempoEstimadoMin} min`}
           </div>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <h3 className="text-xs uppercase tracking-wide text-muted mb-2.5">Inventario</h3>
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="bg-panel border border-border rounded-lg px-2.5 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-muted mb-1">Inicial</div>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={inventarioInicial}
+              onChange={(e) => setInventarioInicial(e.target.value)}
+              onBlur={(e) => saveInventario("inventarioInicial", e.target.value)}
+              placeholder="Sin registrar"
+              className="w-full bg-transparent text-sm font-mono focus:outline-none placeholder:text-muted2 placeholder:italic placeholder:text-xs"
+            />
+          </div>
+          <div className="bg-panel border border-border rounded-lg px-2.5 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-muted mb-1">Final</div>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={inventarioFinal}
+              onChange={(e) => setInventarioFinal(e.target.value)}
+              onBlur={(e) => saveInventario("inventarioFinal", e.target.value)}
+              placeholder="Sin registrar"
+              className="w-full bg-transparent text-sm font-mono focus:outline-none placeholder:text-muted2 placeholder:italic placeholder:text-xs"
+            />
+          </div>
+        </div>
+        {inventarioCoincide !== null && (
+          <p className={`text-xs mt-2 ${inventarioCoincide ? "text-teal" : "text-amber"}`}>
+            {inventarioCoincide
+              ? "✓ Coincide"
+              : `⚠ Diferencia de ${Math.abs((inventarioNum.inicial as number) - (inventarioNum.final as number))} unidades`}
+          </p>
+        )}
       </div>
 
       {categories.map(([catName]) => {

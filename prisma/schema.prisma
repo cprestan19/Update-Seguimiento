@@ -82,6 +82,9 @@ model Store {
   finReal           DateTime?
   duracionRealMin   Int?
 
+  inventarioInicial Int?
+  inventarioFinal   Int?
+
   checklist         StoreChecklistItem[]
   incidents         Incident[]
 

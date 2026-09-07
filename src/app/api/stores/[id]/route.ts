@@ -25,36 +25,59 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json(store);
 }
 
-// Solo ADMIN puede reasignar personal a una tienda
+// Reasignar personal (solo ADMIN) y/o registrar inventario inicial/final (cualquier usuario autenticado)
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  if (session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Solo un administrador puede reasignar personal" }, { status: 403 });
-  }
 
   const body = await req.json();
-  const { tecnicoId, auditorTIId, auditorInvId } = body as {
+  const { tecnicoId, auditorTIId, auditorInvId, inventarioInicial, inventarioFinal } = body as {
     tecnicoId?: string | null;
     auditorTIId?: string | null;
     auditorInvId?: string | null;
+    inventarioInicial?: number | string | null;
+    inventarioFinal?: number | string | null;
   };
 
-  const store = await prisma.store.update({
-    where: { id: params.id },
-    data: {
-      tecnicoId: tecnicoId === "" ? null : tecnicoId,
-      auditorTIId: auditorTIId === "" ? null : auditorTIId,
-      auditorInvId: auditorInvId === "" ? null : auditorInvId,
-    },
-  });
+  const data: Record<string, unknown> = {};
+  const auditDetalle: Record<string, unknown> = {};
+
+  const reasignando = tecnicoId !== undefined || auditorTIId !== undefined || auditorInvId !== undefined;
+  if (reasignando) {
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Solo un administrador puede reasignar personal" }, { status: 403 });
+    }
+    if (tecnicoId !== undefined) data.tecnicoId = tecnicoId === "" ? null : tecnicoId;
+    if (auditorTIId !== undefined) data.auditorTIId = auditorTIId === "" ? null : auditorTIId;
+    if (auditorInvId !== undefined) data.auditorInvId = auditorInvId === "" ? null : auditorInvId;
+    auditDetalle.tecnicoId = tecnicoId;
+    auditDetalle.auditorTIId = auditorTIId;
+    auditDetalle.auditorInvId = auditorInvId;
+  }
+
+  function parseInventario(v: number | string | null | undefined) {
+    if (v === "" || v === null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n) : null;
+  }
+
+  if (inventarioInicial !== undefined) {
+    data.inventarioInicial = parseInventario(inventarioInicial);
+    auditDetalle.inventarioInicial = data.inventarioInicial;
+  }
+  if (inventarioFinal !== undefined) {
+    data.inventarioFinal = parseInventario(inventarioFinal);
+    auditDetalle.inventarioFinal = data.inventarioFinal;
+  }
+
+  const store = await prisma.store.update({ where: { id: params.id }, data });
 
   await prisma.auditLog.create({
     data: {
       userId: session.user.id,
-      accion: "ASIGNACION",
+      accion: reasignando ? "ASIGNACION" : "INVENTARIO_ACTUALIZADO",
       entidad: `Store:${store.id}`,
-      detalle: JSON.stringify({ tecnicoId, auditorTIId, auditorInvId }),
+      detalle: JSON.stringify(auditDetalle),
     },
   });
 
