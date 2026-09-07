@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap");
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: #0a0e14;
+  color: #e6edf3;
+}
+
+::selection {
+  background: #2dd4bf;
+  color: #001410;
+}
+
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+
+/* Algunos navegadores ignoran color-scheme en el popup nativo del <select>
+   y lo pintan con fondo blanco del sistema; forzamos los colores del tema
+   directamente en <option> para que el texto siga siendo legible. */
+option {
+  background-color: #161c27;
+  color: #e6edf3;
+}

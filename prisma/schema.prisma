@@ -1,0 +1,177 @@
+// Modelo de datos - Control de Migracion RPro v9 -> Prism 2.2
+// ASW Group
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Autenticacion y personal
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum PersonnelRole {
+  TECNICO
+  AUDITOR_TI
+  AUDITOR_INVENTARIO
+  COORDINADOR
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  username      String         @unique
+  passwordHash  String
+  role          Role           @default(USER)
+  personnelRole PersonnelRole?
+  pais          String?
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  storesAsTecnico     Store[] @relation("Tecnico")
+  storesAsAuditorTI   Store[] @relation("AuditorTI")
+  storesAsAuditorInv  Store[] @relation("AuditorInv")
+
+  incidentsCreated    Incident[]            @relation("IncidentCreatedBy")
+  incidentsResolved   Incident[]            @relation("IncidentResolvedBy")
+  checklistCompleted  StoreChecklistItem[]  @relation("ChecklistCompletedBy")
+  auditLogs           AuditLog[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Tiendas y estado de migracion
+// ---------------------------------------------------------------------------
+
+enum EstadoMigracion {
+  PENDIENTE
+  EN_PROGRESO
+  COMPLETADA
+  CON_INCIDENCIA
+}
+
+model Store {
+  id                String          @id @default(cuid())
+  pais              String
+  region            String
+  tienda            String
+  horario           String // texto original del Excel, ej: "4:00AM"
+  minutosDia        Int // horario normalizado a minutos desde medianoche, para ordenar/graficar
+  estado            EstadoMigracion @default(PENDIENTE)
+
+  tecnicoId         String?
+  tecnico           User?           @relation("Tecnico", fields: [tecnicoId], references: [id])
+  auditorTIId       String?
+  auditorTI         User?           @relation("AuditorTI", fields: [auditorTIId], references: [id])
+  auditorInvId      String?
+  auditorInv        User?           @relation("AuditorInv", fields: [auditorInvId], references: [id])
+
+  tiempoEstimadoMin Int             @default(45)
+  inicioReal        DateTime?
+  finReal           DateTime?
+  duracionRealMin   Int?
+
+  checklist         StoreChecklistItem[]
+  incidents         Incident[]
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([pais])
+  @@index([estado])
+  @@map("stores")
+}
+
+// ---------------------------------------------------------------------------
+// Checklist: definicion (catalogo) + estado por tienda
+// ---------------------------------------------------------------------------
+
+model ChecklistCategory {
+  id      String             @id @default(cuid())
+  nombre  String
+  orden   Int
+  items   ChecklistItemDef[]
+
+  @@map("checklist_categories")
+}
+
+model ChecklistItemDef {
+  id          String              @id @default(cuid())
+  categoryId  String
+  category    ChecklistCategory   @relation(fields: [categoryId], references: [id])
+  nombre      String
+  orden       Int
+  storeItems  StoreChecklistItem[]
+
+  @@map("checklist_item_defs")
+}
+
+model StoreChecklistItem {
+  id              String            @id @default(cuid())
+  storeId         String
+  store           Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  itemDefId       String
+  itemDef         ChecklistItemDef  @relation(fields: [itemDefId], references: [id])
+  completado      Boolean           @default(false)
+  completadoPorId String?
+  completadoPor   User?             @relation("ChecklistCompletedBy", fields: [completadoPorId], references: [id])
+  completadoEn    DateTime?
+
+  @@unique([storeId, itemDefId])
+  @@map("store_checklist_items")
+}
+
+// ---------------------------------------------------------------------------
+// Incidencias
+// ---------------------------------------------------------------------------
+
+enum Severidad {
+  BAJA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+model Incident {
+  id             String     @id @default(cuid())
+  storeId        String
+  store          Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  severidad      Severidad  @default(MEDIA)
+  descripcion    String
+  resuelta       Boolean    @default(false)
+  createdById    String?
+  createdBy      User?      @relation("IncidentCreatedBy", fields: [createdById], references: [id])
+  resolvedById   String?
+  resolvedBy     User?      @relation("IncidentResolvedBy", fields: [resolvedById], references: [id])
+  resolvedAt     DateTime?
+  createdAt      DateTime   @default(now())
+
+  @@map("incidents")
+}
+
+// ---------------------------------------------------------------------------
+// Auditoria (quien hizo que y cuando)
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  accion    String // ej: "CHECKLIST_TOGGLE", "ASIGNACION", "INCIDENCIA_CREADA", "LOGIN"
+  entidad   String? // ej: "Store:cly123..."
+  detalle   String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
