@@ -31,6 +31,14 @@ const EMPTY_FORM = {
   pais: "",
 };
 
+type ShareInfo = { name: string; username: string; password: string };
+
+function buildWhatsAppLink(info: ShareInfo) {
+  const url = typeof window !== "undefined" ? `${window.location.origin}/login` : "";
+  const mensaje = `Hola ${info.name}, estos son tus accesos al Centro de Control de Migración:\n\nUsuario: ${info.username}\nContraseña: ${info.password}\n\nIngresa aquí: ${url}`;
+  return `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+}
+
 export default function EquipoPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -41,6 +49,8 @@ export default function EquipoPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState(EMPTY_FORM);
   const [editError, setEditError] = useState<string | null>(null);
+
+  const [shareInfo, setShareInfo] = useState<ShareInfo | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/users");
@@ -68,6 +78,7 @@ export default function EquipoPage() {
       setError(data.error || "No se pudo crear el usuario");
       return;
     }
+    setShareInfo({ name: form.name, username: form.username, password: form.password });
     setForm(EMPTY_FORM);
     load();
   }
@@ -112,6 +123,9 @@ export default function EquipoPage() {
       const data = await res.json();
       setEditError(data.error || "No se pudo guardar el cambio");
       return;
+    }
+    if (editForm.password) {
+      setShareInfo({ name: editForm.name, username: editForm.username, password: editForm.password });
     }
     setEditingId(null);
     load();
@@ -207,6 +221,31 @@ export default function EquipoPage() {
           + Agregar al equipo
         </button>
       </form>
+
+      {shareInfo && (
+        <div className="bg-tealDim border border-teal/30 rounded-xl p-3.5 mb-6 flex items-center justify-between flex-wrap gap-3">
+          <div className="text-sm">
+            <span className="font-semibold text-teal">Accesos listos para {shareInfo.name}.</span>{" "}
+            <span className="text-muted">
+              Usuario <span className="font-mono text-text">{shareInfo.username}</span> · Contraseña{" "}
+              <span className="font-mono text-text">{shareInfo.password}</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <a
+              href={buildWhatsAppLink(shareInfo)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-[#128C7E] text-white rounded-lg px-3.5 py-1.5 text-xs font-semibold hover:opacity-90"
+            >
+              Enviar por WhatsApp
+            </a>
+            <button onClick={() => setShareInfo(null)} className="text-muted hover:text-text text-xs">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {users.map((u) =>
