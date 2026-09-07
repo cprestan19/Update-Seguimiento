@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 type StoreRow = {
@@ -88,6 +88,17 @@ export default function DashboardPage() {
   const [pais, setPais] = useState("");
   const [region, setRegion] = useState("");
   const [estado, setEstado] = useState("");
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  function filterByEstado(value: string) {
+    setEstado(value);
+    setQ("");
+    setPais("");
+    setRegion("");
+    requestAnimationFrame(() => {
+      tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 
   async function load() {
     setLoading(true);
@@ -153,22 +164,55 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
-        <Kpi label="Tiendas" value={kpis.total} />
-        <Kpi label="Completadas" value={kpis.completadas} color="text-teal" />
-        <Kpi label="En progreso" value={kpis.progreso} color="text-blue" />
-        <Kpi label="Pendientes" value={kpis.pendientes} color="text-muted" />
-        <Kpi label="Con incidencia" value={kpis.incidencias} color="text-red" />
+        <Kpi label="Tiendas" value={kpis.total} active={estado === ""} onClick={() => filterByEstado("")} />
+        <Kpi
+          label="Completadas"
+          value={kpis.completadas}
+          color="text-teal"
+          active={estado === "COMPLETADA"}
+          onClick={() => filterByEstado("COMPLETADA")}
+        />
+        <Kpi
+          label="En progreso"
+          value={kpis.progreso}
+          color="text-blue"
+          active={estado === "EN_PROGRESO"}
+          onClick={() => filterByEstado("EN_PROGRESO")}
+        />
+        <Kpi
+          label="Pendientes"
+          value={kpis.pendientes}
+          color="text-muted"
+          active={estado === "PENDIENTE"}
+          onClick={() => filterByEstado("PENDIENTE")}
+        />
+        <Kpi
+          label="Con incidencia"
+          value={kpis.incidencias}
+          color="text-red"
+          active={estado === "CON_INCIDENCIA"}
+          onClick={() => filterByEstado("CON_INCIDENCIA")}
+        />
         <Kpi label="Avance" value={`${kpis.avance}%`} color="text-teal" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <EstadoChart counts={estadoCounts} />
-        <PaisAvanceChart rows={paisAvance} />
+        <EstadoChart counts={estadoCounts} onSelect={filterByEstado} selected={estado} />
+        <PaisAvanceChart
+          rows={paisAvance}
+          onSelect={(p) => {
+            setEstado("");
+            setQ("");
+            setRegion("");
+            setPais(p);
+            requestAnimationFrame(() => tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+          }}
+        />
       </div>
 
       <AtencionSection items={atencion} />
 
-      <div className="flex flex-wrap gap-2.5 mb-4 items-center">
+      <div ref={tableRef} className="flex flex-wrap gap-2.5 mb-4 items-center">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -315,9 +359,38 @@ export default function DashboardPage() {
   );
 }
 
-function Kpi({ label, value, color }: { label: string; value: number | string; color?: string }) {
+function Kpi({
+  label,
+  value,
+  color,
+  onClick,
+  active,
+}: {
+  label: string;
+  value: number | string;
+  color?: string;
+  onClick?: () => void;
+  active?: boolean;
+}) {
   return (
-    <div className="bg-panel border border-border rounded-xl px-3.5 py-3.5">
+    <div
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={`text-left w-full bg-panel border rounded-xl px-3.5 py-3.5 transition ${
+        onClick ? "cursor-pointer hover:border-teal/40 active:scale-[0.97]" : ""
+      } ${active ? "border-teal/50 ring-1 ring-teal/30" : "border-border"}`}
+    >
       <div className={`font-display text-[26px] leading-none font-semibold ${color || ""}`}>{value}</div>
       <div className="text-[11px] uppercase tracking-wide text-muted mt-1.5">{label}</div>
     </div>
@@ -326,8 +399,12 @@ function Kpi({ label, value, color }: { label: string; value: number | string; c
 
 function EstadoChart({
   counts,
+  onSelect,
+  selected,
 }: {
   counts: { key: string; label: string; count: number; color: string }[];
+  onSelect?: (key: string) => void;
+  selected?: string;
 }) {
   const max = Math.max(1, ...counts.map((c) => c.count));
   return (
@@ -335,7 +412,14 @@ function EstadoChart({
       <h2 className="text-sm font-semibold font-display mb-4">Estado de las tiendas</h2>
       <div className="space-y-3">
         {counts.map((c) => (
-          <div key={c.key} className="flex items-center gap-3">
+          <button
+            type="button"
+            key={c.key}
+            onClick={() => onSelect?.(selected === c.key ? "" : c.key)}
+            className={`w-full flex items-center gap-3 -mx-1.5 px-1.5 py-0.5 rounded-lg transition text-left ${
+              onSelect ? "cursor-pointer hover:bg-[#151C27]" : ""
+            } ${selected === c.key ? "bg-[#151C27]" : ""}`}
+          >
             <span className="w-[92px] shrink-0 text-xs text-muted">{c.label}</span>
             <div className="flex-1 h-2.5 rounded-full bg-panel2 overflow-hidden">
               <div
@@ -344,7 +428,7 @@ function EstadoChart({
               />
             </div>
             <span className="w-7 shrink-0 text-right text-xs font-mono text-text">{c.count}</span>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -353,15 +437,24 @@ function EstadoChart({
 
 function PaisAvanceChart({
   rows,
+  onSelect,
 }: {
   rows: { pais: string; total: number; completadas: number; pct: number }[];
+  onSelect?: (pais: string) => void;
 }) {
   return (
     <div className="bg-panel border border-border rounded-2xl p-4">
       <h2 className="text-sm font-semibold font-display mb-4">Avance por país</h2>
       <div className="space-y-3">
         {rows.map((r) => (
-          <div key={r.pais} className="flex items-center gap-3">
+          <button
+            type="button"
+            key={r.pais}
+            onClick={() => onSelect?.(r.pais)}
+            className={`w-full flex items-center gap-3 -mx-1.5 px-1.5 py-0.5 rounded-lg transition text-left ${
+              onSelect ? "cursor-pointer hover:bg-[#151C27]" : ""
+            }`}
+          >
             <span className="w-[100px] shrink-0 text-xs text-muted truncate" title={r.pais}>
               {r.pais}
             </span>
@@ -369,7 +462,7 @@ function PaisAvanceChart({
               <div className="h-full rounded-full bg-teal" style={{ width: `${r.pct}%` }} />
             </div>
             <span className="w-9 shrink-0 text-right text-xs font-mono text-text">{r.pct}%</span>
-          </div>
+          </button>
         ))}
         {rows.length === 0 && <p className="text-sm text-muted">Sin datos.</p>}
       </div>
