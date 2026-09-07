@@ -39,12 +39,72 @@ const ESTADO_BADGE: Record<string, string> = {
   CON_INCIDENCIA: "bg-redDim text-red",
 };
 
+type GroupRow = {
+  key: string;
+  total: number;
+  completadas: number;
+  faltantes: number;
+  efectividad: number;
+  tiempoPromedio: number | null;
+  etaMinutosDia: number | null;
+};
+
+function buildGroups(stores: StoreRow[], groupBy: "pais" | "region"): GroupRow[] {
+  const map = new Map<string, StoreRow[]>();
+  for (const s of stores) {
+    const key = groupBy === "pais" ? s.pais : s.region;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(s);
+  }
+
+  const completadasConTiempoGlobal = stores.filter((s) => s.duracionRealMin != null);
+  const promedioGlobal = completadasConTiempoGlobal.length
+    ? completadasConTiempoGlobal.reduce((a, s) => a + (s.duracionRealMin || 0), 0) /
+      completadasConTiempoGlobal.length
+    : null;
+
+  return Array.from(map.entries())
+    .map(([key, list]) => {
+      const total = list.length;
+      const completadas = list.filter((s) => s.estado === "COMPLETADA").length;
+      const faltantes = total - completadas;
+      const efectividad = total > 0 ? Math.round((completadas / total) * 100) : 0;
+
+      const completadasConTiempo = list.filter((s) => s.duracionRealMin != null);
+      const tiempoPromedio = completadasConTiempo.length
+        ? Math.round(
+            completadasConTiempo.reduce((a, s) => a + (s.duracionRealMin || 0), 0) /
+              completadasConTiempo.length
+          )
+        : null;
+
+      const pendientes = list.filter((s) => s.estado !== "COMPLETADA");
+      const etaMinutosDia = pendientes.length
+        ? Math.max(...pendientes.map((s) => s.minutosDia + (promedioGlobal ?? s.tiempoEstimadoMin)))
+        : null;
+
+      return { key, total, completadas, faltantes, efectividad, tiempoPromedio, etaMinutosDia };
+    })
+    .sort((a, b) => b.total - a.total);
+}
+
+function formatMinutosDia(min: number): string {
+  const wrapped = ((Math.round(min) % 1440) + 1440) % 1440;
+  const hh24 = Math.floor(wrapped / 60);
+  const mm = wrapped % 60;
+  const period = hh24 < 12 ? "AM" : "PM";
+  let hh12 = hh24 % 12;
+  if (hh12 === 0) hh12 = 12;
+  return `${hh12}:${String(mm).padStart(2, "0")}${period}`;
+}
+
 export default function DashboardPage() {
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [pais, setPais] = useState("");
   const [estado, setEstado] = useState("");
+  const [groupBy, setGroupBy] = useState<"pais" | "region">("pais");
 
   async function load() {
     setLoading(true);
@@ -85,6 +145,8 @@ export default function DashboardPage() {
     return { total, completadas, progreso, pendientes, incidencias, tiempoProm };
   }, [stores]);
 
+  const groups = useMemo(() => buildGroups(stores, groupBy), [stores, groupBy]);
+
   if (loading) {
     return <div className="text-muted text-sm py-10 text-center">Cargando tiendas...</div>;
   }
@@ -102,6 +164,82 @@ export default function DashboardPage() {
           value={kpis.tiempoProm != null ? `${kpis.tiempoProm}m` : "—"}
           color="text-text"
         />
+      </div>
+
+      <div className="bg-panel border border-border rounded-2xl p-4 mb-6">
+        <div className="flex items-center justify-between mb-3.5 flex-wrap gap-2">
+          <h2 className="text-sm font-semibold font-display">Resumen por {groupBy === "pais" ? "país" : "región"}</h2>
+          <div className="flex gap-1 bg-panel2 border border-border rounded-lg p-0.5">
+            <button
+              onClick={() => setGroupBy("pais")}
+              className={`text-xs px-2.5 py-1 rounded-md transition ${
+                groupBy === "pais" ? "bg-tealDim text-teal" : "text-muted hover:text-text"
+              }`}
+            >
+              País
+            </button>
+            <button
+              onClick={() => setGroupBy("region")}
+              className={`text-xs px-2.5 py-1 rounded-md transition ${
+                groupBy === "region" ? "bg-tealDim text-teal" : "text-muted hover:text-text"
+              }`}
+            >
+              Región
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wide text-muted">
+                <th className="text-left py-2 pr-3 font-semibold">{groupBy === "pais" ? "País" : "Región"}</th>
+                <th className="text-left py-2 px-3 font-semibold">Completadas</th>
+                <th className="text-left py-2 px-3 font-semibold">Faltantes</th>
+                <th className="text-left py-2 px-3 font-semibold">% Efectividad</th>
+                <th className="text-left py-2 px-3 font-semibold">Tiempo prom.</th>
+                <th className="text-left py-2 pl-3 font-semibold">Hora est. término</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((g) => (
+                <tr key={g.key} className="border-t border-border">
+                  <td className="py-2.5 pr-3 font-medium">{g.key}</td>
+                  <td className="py-2.5 px-3 text-teal">
+                    {g.completadas}/{g.total}
+                  </td>
+                  <td className="py-2.5 px-3">
+                    {g.faltantes > 0 ? (
+                      <span className="text-amber">{g.faltantes}</span>
+                    ) : (
+                      <span className="text-muted2">0</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-1.5 rounded bg-panel2 overflow-hidden">
+                        <div
+                          className="h-full rounded bg-teal"
+                          style={{ width: `${g.efectividad}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-xs text-muted">{g.efectividad}%</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-3 font-mono text-xs text-muted">
+                    {g.tiempoPromedio != null ? `${g.tiempoPromedio}m` : "—"}
+                  </td>
+                  <td className="py-2.5 pl-3 font-mono text-xs">
+                    {g.etaMinutosDia != null ? (
+                      formatMinutosDia(g.etaMinutosDia)
+                    ) : (
+                      <span className="text-teal">Completado</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2.5 mb-4 items-center">
