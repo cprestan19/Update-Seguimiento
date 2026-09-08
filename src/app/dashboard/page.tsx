@@ -143,10 +143,46 @@ export default function DashboardPage() {
     });
   }, [stores, q, pais, region, estado]);
 
-  const sortedFiltered = useMemo(
-    () => [...filtered].sort((a, b) => a.minutosDia - b.minutosDia),
-    [filtered]
-  );
+  type SortKey = "estado" | "pais" | "tienda" | "horario" | "tecnico" | "progreso";
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sortedFiltered = useMemo(() => {
+    const arr = [...filtered];
+    if (!sortKey) {
+      arr.sort((a, b) => a.minutosDia - b.minutosDia);
+      return arr;
+    }
+    const dir = sortDir === "asc" ? 1 : -1;
+    arr.sort((a, b) => {
+      switch (sortKey) {
+        case "estado":
+          return ESTADO_LABEL[a.estado].localeCompare(ESTADO_LABEL[b.estado]) * dir;
+        case "pais":
+          return a.pais.localeCompare(b.pais) * dir;
+        case "tienda":
+          return a.tienda.localeCompare(b.tienda) * dir;
+        case "horario":
+          return (a.minutosDia - b.minutosDia) * dir;
+        case "tecnico":
+          return (a.tecnico?.name || "").localeCompare(b.tecnico?.name || "") * dir;
+        case "progreso":
+          return (a.progreso - b.progreso) * dir;
+        default:
+          return 0;
+      }
+    });
+    return arr;
+  }, [filtered, sortKey, sortDir]);
 
   const kpis = useMemo(() => {
     const total = stores.length;
@@ -344,12 +380,12 @@ export default function DashboardPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-panel2 text-[11px] uppercase tracking-wide text-muted">
-                <th className="text-left px-4 py-3 font-semibold">Estado</th>
-                <th className="text-left px-4 py-3 font-semibold">País</th>
-                <th className="text-left px-4 py-3 font-semibold">Tienda</th>
-                <th className="text-left px-4 py-3 font-semibold">Horario</th>
-                <th className="text-left px-4 py-3 font-semibold">Técnico</th>
-                <th className="text-left px-4 py-3 font-semibold">Progreso</th>
+                <SortTh label="Estado" sortKey="estado" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="País" sortKey="pais" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Tienda" sortKey="tienda" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Horario" sortKey="horario" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Técnico" sortKey="tecnico" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Progreso" sortKey="progreso" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
               </tr>
             </thead>
             <tbody>
@@ -377,11 +413,14 @@ export default function DashboardPage() {
                     {s.tecnico ? s.tecnico.name : <span className="text-muted2 italic text-xs">Sin asignar</span>}
                   </td>
                   <td className="px-4 py-2.5">
-                    <div className="w-24 h-1.5 rounded bg-panel2 overflow-hidden">
-                      <div
-                        className="h-full rounded"
-                        style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }}
-                      />
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-1.5 rounded bg-panel2 overflow-hidden">
+                        <div
+                          className="h-full rounded"
+                          style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-mono text-muted w-8 shrink-0">{s.progreso}%</span>
                     </div>
                   </td>
                 </tr>
@@ -424,6 +463,7 @@ export default function DashboardPage() {
                     style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }}
                   />
                 </div>
+                <span className="text-[11px] font-mono text-muted shrink-0">{s.progreso}%</span>
                 <span className="text-xs text-muted shrink-0">
                   {s.tecnico ? s.tecnico.name : "Sin técnico"}
                 </span>
@@ -449,6 +489,36 @@ export default function DashboardPage() {
         regiones={regiones}
       />
     </motion.div>
+  );
+}
+
+function SortTh({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  label: string;
+  sortKey: string;
+  activeKey: string | null;
+  dir: "asc" | "desc";
+  onSort: (key: any) => void;
+}) {
+  const active = activeKey === sortKey;
+  return (
+    <th className="text-left px-4 py-3 font-semibold">
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`flex items-center gap-1 hover:text-text transition ${active ? "text-text" : ""}`}
+      >
+        {label}
+        <span className={`text-[10px] ${active ? "opacity-100" : "opacity-30"}`}>
+          {active && dir === "desc" ? "▼" : "▲"}
+        </span>
+      </button>
+    </th>
   );
 }
 
@@ -490,31 +560,74 @@ function Kpi({
   );
 }
 
-function ProgressCircle({ pct }: { pct: number }) {
+function ProgressCircle({
+  pct,
+  total,
+  completadas,
+  progreso,
+  pendientes,
+  incidencias,
+}: {
+  pct: number;
+  total: number;
+  completadas: number;
+  progreso: number;
+  pendientes: number;
+  incidencias: number;
+}) {
   const size = 152;
   const stroke = 12;
+  const gap = 3; // separación visual entre segmentos
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const reduceMotion = useReducedMotion();
 
-  const mv = useMotionValue(0);
+  const mvPct = useMotionValue(0);
   const [display, setDisplay] = useState(0);
-  const offset = useTransform(mv, (v) => circumference - (v / 100) * circumference);
+  const mvReveal = useMotionValue(reduceMotion ? 1 : 0);
+
+  const base = total > 0 ? total : 1;
+  const fCompletada = completadas / base;
+  const fProgreso = progreso / base;
+  const fPendiente = pendientes / base;
+  const fIncidencia = incidencias / base;
+
+  const startCompletada = 0;
+  const startProgreso = fCompletada;
+  const startPendiente = fCompletada + fProgreso;
+  const startIncidencia = fCompletada + fProgreso + fPendiente;
+
+  const lenCompletada = useTransform(mvReveal, (t) => Math.max(0, fCompletada * circumference * t - (fCompletada > 0 ? gap : 0)));
+  const lenProgreso = useTransform(mvReveal, (t) => Math.max(0, fProgreso * circumference * t - (fProgreso > 0 ? gap : 0)));
+  const lenPendiente = useTransform(mvReveal, (t) => Math.max(0, fPendiente * circumference * t - (fPendiente > 0 ? gap : 0)));
+  const lenIncidencia = useTransform(mvReveal, (t) => Math.max(0, fIncidencia * circumference * t - (fIncidencia > 0 ? gap : 0)));
+
+  const dashCompletada = useTransform(lenCompletada, (v) => `${v} ${circumference}`);
+  const dashProgreso = useTransform(lenProgreso, (v) => `${v} ${circumference}`);
+  const dashPendiente = useTransform(lenPendiente, (v) => `${v} ${circumference}`);
+  const dashIncidencia = useTransform(lenIncidencia, (v) => `${v} ${circumference}`);
+
+  const depsKey = `${total}-${completadas}-${progreso}-${pendientes}-${incidencias}`;
 
   useEffect(() => {
     if (reduceMotion) {
-      mv.set(pct);
+      mvPct.set(pct);
       setDisplay(pct);
+      mvReveal.set(1);
       return;
     }
-    const controls = animate(mv, pct, {
+    const c1 = animate(mvPct, pct, {
       duration: 0.9,
       ease: "easeOut",
       onUpdate: (v) => setDisplay(Math.round(v)),
     });
-    return () => controls.stop();
+    const c2 = animate(mvReveal, 1, { duration: 0.9, ease: "easeOut" });
+    return () => {
+      c1.stop();
+      c2.stop();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pct, reduceMotion]);
+  }, [depsKey, reduceMotion]);
 
   return (
     <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
@@ -524,12 +637,41 @@ function ProgressCircle({ pct }: { pct: number }) {
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#2DD4BF"
+          stroke={ESTADO_COLOR.COMPLETADA}
           strokeWidth={stroke}
           fill="none"
-          strokeDasharray={circumference}
           strokeLinecap="round"
-          style={{ strokeDashoffset: offset }}
+          style={{ strokeDasharray: dashCompletada, strokeDashoffset: -startCompletada * circumference }}
+        />
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={ESTADO_COLOR.EN_PROGRESO}
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          style={{ strokeDasharray: dashProgreso, strokeDashoffset: -startProgreso * circumference }}
+        />
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={ESTADO_COLOR.PENDIENTE}
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          style={{ strokeDasharray: dashPendiente, strokeDashoffset: -startPendiente * circumference }}
+        />
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={ESTADO_COLOR.CON_INCIDENCIA}
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          style={{ strokeDasharray: dashIncidencia, strokeDashoffset: -startIncidencia * circumference }}
         />
       </svg>
       <div className="absolute font-display text-3xl font-bold">{display}%</div>
@@ -553,7 +695,14 @@ function AvanceMigracionCard({
   return (
     <div className="bg-panel border border-border rounded-2xl p-5 h-full flex flex-col items-center">
       <h2 className="text-sm font-semibold font-display self-start mb-4">Avance de migración</h2>
-      <ProgressCircle pct={data.pct} />
+      <ProgressCircle
+        pct={data.pct}
+        total={data.total}
+        completadas={data.completadas}
+        progreso={data.progreso}
+        pendientes={data.pendientes}
+        incidencias={data.incidencias}
+      />
       <div className="mt-3 text-sm text-muted">
         <span className="font-mono text-text font-semibold">{data.completadas}</span> / {data.total} tiendas
       </div>
