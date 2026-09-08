@@ -18,6 +18,7 @@ type StoreRow = {
   region: string;
   tienda: string;
   horario: string;
+  inicioReal: string | null;
   minutosDia: number;
   estado: "PENDIENTE" | "EN_PROGRESO" | "COMPLETADA" | "CON_INCIDENCIA";
   tecnico: { id: string; name: string } | null;
@@ -47,6 +48,29 @@ const ESTADO_BADGE: Record<string, string> = {
   COMPLETADA: "bg-tealDim text-teal",
   CON_INCIDENCIA: "bg-redDim text-red",
 };
+
+function formatHoraCorta(iso: string): string {
+  const d = new Date(iso);
+  let hh = d.getHours();
+  const mm = d.getMinutes();
+  const period = hh < 12 ? "AM" : "PM";
+  hh = hh % 12;
+  if (hh === 0) hh = 12;
+  return `${hh}:${String(mm).padStart(2, "0")}${period}`;
+}
+
+// Muestra la hora real que asignó el técnico (Hora de inicio) cuando ya
+// existe; si aún no ha iniciado, cae de vuelta al horario programado.
+function horaMostrada(s: Pick<StoreRow, "horario" | "inicioReal">): string {
+  return s.inicioReal ? formatHoraCorta(s.inicioReal) : s.horario;
+}
+
+// Minutos del día para ordenar, coherente con lo que muestra horaMostrada().
+function horaMinutosOrden(s: Pick<StoreRow, "minutosDia" | "inicioReal">): number {
+  if (!s.inicioReal) return s.minutosDia;
+  const d = new Date(s.inicioReal);
+  return d.getHours() * 60 + d.getMinutes();
+}
 
 function buildPaisAvance(stores: StoreRow[]) {
   const map = new Map<string, StoreRow[]>();
@@ -96,7 +120,7 @@ export default function DashboardPage() {
   const [q, setQ] = useState("");
   const [pais, setPais] = useState("");
   const [region, setRegion] = useState("");
-  const [estado, setEstado] = useState("");
+  const [estado, setEstado] = useState("EN_PROGRESO");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -159,7 +183,7 @@ export default function DashboardPage() {
   const sortedFiltered = useMemo(() => {
     const arr = [...filtered];
     if (!sortKey) {
-      arr.sort((a, b) => a.minutosDia - b.minutosDia);
+      arr.sort((a, b) => horaMinutosOrden(a) - horaMinutosOrden(b));
       return arr;
     }
     const dir = sortDir === "asc" ? 1 : -1;
@@ -172,7 +196,7 @@ export default function DashboardPage() {
         case "tienda":
           return a.tienda.localeCompare(b.tienda) * dir;
         case "horario":
-          return (a.minutosDia - b.minutosDia) * dir;
+          return (horaMinutosOrden(a) - horaMinutosOrden(b)) * dir;
         case "tecnico":
           return (a.tecnico?.name || "").localeCompare(b.tecnico?.name || "") * dir;
         case "progreso":
@@ -408,7 +432,7 @@ export default function DashboardPage() {
                     </Link>
                     <div className="text-[12px] text-muted">{s.region}</div>
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-muted text-xs">{s.horario}</td>
+                  <td className="px-4 py-2.5 font-mono text-muted text-xs">{horaMostrada(s)}</td>
                   <td className="px-4 py-2.5">
                     {s.tecnico ? s.tecnico.name : <span className="text-muted2 italic text-xs">Sin asignar</span>}
                   </td>
@@ -450,7 +474,7 @@ export default function DashboardPage() {
                   {ESTADO_LABEL[s.estado]}
                   {s.incidenciasAbiertas > 0 ? ` (${s.incidenciasAbiertas})` : ""}
                 </span>
-                <span className="font-mono text-xs text-muted shrink-0">{s.horario}</span>
+                <span className="font-mono text-xs text-muted shrink-0">{horaMostrada(s)}</span>
               </div>
               <div className="font-medium text-sm">{s.tienda}</div>
               <div className="text-xs text-muted mb-2.5">

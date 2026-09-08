@@ -28,6 +28,7 @@ export async function GET() {
       region: s.region,
       tienda: s.tienda,
       horario: s.horario,
+      inicioReal: s.inicioReal,
       minutosDia: s.minutosDia,
       estado: s.estado,
       tecnico: s.tecnico,
