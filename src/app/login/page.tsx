@@ -76,7 +76,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-[11px] text-muted2 mt-6 text-center">ASW Group · Orbis Retail</p>
+        <p className="text-[11px] text-muted2 mt-6 text-center">ASW Group</p>
       </div>
     </main>
   );
