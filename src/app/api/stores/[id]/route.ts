@@ -39,6 +39,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     inventarioFinal,
     costoInicial,
     costoFinal,
+    inicioReal,
   } = body as {
     tecnicoId?: string | null;
     auditorTIId?: string | null;
@@ -47,6 +48,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     inventarioFinal?: number | string | null;
     costoInicial?: number | string | null;
     costoFinal?: number | string | null;
+    inicioReal?: string | null;
   };
 
   const data: Record<string, unknown> = {};
@@ -93,6 +95,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (costoFinal !== undefined) {
     data.costoFinal = parseCosto(costoFinal);
     auditDetalle.costoFinal = data.costoFinal;
+  }
+
+  if (inicioReal !== undefined) {
+    const nuevoInicio = inicioReal ? new Date(inicioReal) : null;
+    data.inicioReal = nuevoInicio;
+    auditDetalle.inicioReal = nuevoInicio;
+
+    const actual = await prisma.store.findUnique({ where: { id: params.id } });
+    if (actual?.finReal && nuevoInicio) {
+      data.duracionRealMin = Math.round((actual.finReal.getTime() - nuevoInicio.getTime()) / 60000);
+    }
   }
 
   const store = await prisma.store.update({ where: { id: params.id }, data });

@@ -35,6 +35,8 @@ type StoreDetail = {
   auditorTI: Person | null;
   auditorInv: Person | null;
   tiempoEstimadoMin: number;
+  inicioReal: string | null;
+  finReal: string | null;
   duracionRealMin: number | null;
   inventarioInicial: number | null;
   inventarioFinal: number | null;
@@ -43,6 +45,23 @@ type StoreDetail = {
   checklist: ChecklistRow[];
   incidents: Incident[];
 };
+
+function toDatetimeLocalValue(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function formatFechaHora(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("es-PA", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 const ESTADO_LABEL: Record<string, string> = {
   PENDIENTE: "Pendiente",
@@ -67,6 +86,7 @@ export default function StoreDetailPage() {
   const [inventarioFinal, setInventarioFinal] = useState("");
   const [costoInicial, setCostoInicial] = useState("");
   const [costoFinal, setCostoFinal] = useState("");
+  const [inicioReal, setInicioReal] = useState("");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/stores/${id}`);
@@ -83,6 +103,7 @@ export default function StoreDetailPage() {
     setInventarioFinal(store.inventarioFinal != null ? String(store.inventarioFinal) : "");
     setCostoInicial(store.costoInicial != null ? String(store.costoInicial) : "");
     setCostoFinal(store.costoFinal != null ? String(store.costoFinal) : "");
+    setInicioReal(toDatetimeLocalValue(store.inicioReal));
     // Solo re-sincroniza al cambiar de tienda, para no pisar lo que el usuario está escribiendo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store?.id]);
@@ -161,6 +182,16 @@ export default function StoreDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value === "" ? null : Number(value) }),
     });
+  }
+
+  async function saveInicioReal(value: string) {
+    const iso = value ? new Date(value).toISOString() : null;
+    await fetch(`/api/stores/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inicioReal: iso }),
+    });
+    load();
   }
 
   const inventarioNum = {
@@ -310,6 +341,31 @@ export default function StoreDetailPage() {
               : `⚠ Diferencia de $${Math.abs((costoNum.inicial as number) - (costoNum.final as number)).toFixed(2)}`}
           </p>
         )}
+      </div>
+
+      <div className="mb-6">
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="bg-panel border border-border rounded-lg px-2.5 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-muted mb-1">Hora de inicio</div>
+            <input
+              type="datetime-local"
+              value={inicioReal}
+              onChange={(e) => setInicioReal(e.target.value)}
+              onBlur={(e) => saveInicioReal(e.target.value)}
+              className="w-full bg-transparent text-sm font-mono focus:outline-none [color-scheme:dark]"
+            />
+          </div>
+          <div className="bg-panel border border-border rounded-lg px-2.5 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-muted mb-1">Hora de completado</div>
+            <div className="text-sm font-mono py-[3px]">
+              {store.finReal ? (
+                formatFechaHora(store.finReal)
+              ) : (
+                <span className="text-muted2 italic text-xs">Sin completar</span>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {categories.map(([catName]) => {

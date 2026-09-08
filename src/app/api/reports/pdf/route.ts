@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import PDFDocument from "pdfkit";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { authOptions } from "@/lib/auth";
 import { getReportRows } from "@/lib/reportData";
 
 const COLUMNS = [
   { key: "pais", label: "País", width: 70 },
-  { key: "tienda", label: "Tienda", width: 140 },
-  { key: "estado", label: "Estado", width: 80 },
+  { key: "tienda", label: "Tienda", width: 150 },
+  { key: "estado", label: "Estado", width: 90 },
   { key: "progreso", label: "Avance", width: 50 },
-  { key: "tecnico", label: "Técnico", width: 120 },
+  { key: "tecnico", label: "Técnico", width: 130 },
 ] as const;
 
+const PAGE_WIDTH = 595.28; // A4 portrait, en puntos
+const PAGE_HEIGHT = 841.89;
 const MARGIN = 40;
-const PAGE_BOTTOM = 780;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -23,60 +24,73 @@ export async function GET() {
 
   const total = rows.length;
   const completadas = rows.filter((r) => r.estado === "Completada").length;
-  const progreso = rows.filter((r) => r.estado === "En progreso").length;
+  const enProgreso = rows.filter((r) => r.estado === "En progreso").length;
   const pendientes = rows.filter((r) => r.estado === "Pendiente").length;
   const incidencias = rows.filter((r) => r.estado === "Con incidencia").length;
   const avance = total > 0 ? Math.round((completadas / total) * 100) : 0;
 
-  const doc = new PDFDocument({ size: "A4", margin: MARGIN });
-  const chunks: Buffer[] = [];
-  doc.on("data", (chunk) => chunks.push(chunk));
-  const done = new Promise<Buffer>((resolve) => {
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-  });
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  doc.fontSize(18).font("Helvetica-Bold").text("ToolsIT Control Center");
-  doc.fontSize(12).font("Helvetica").text("Reporte de tiendas");
-  doc
-    .fontSize(9)
-    .fillColor("#666")
-    .text(`Generado: ${new Date().toLocaleString("es-PA")}`);
-  doc.fillColor("#000");
-  doc.moveDown(0.5);
+  let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  let y = PAGE_HEIGHT - MARGIN;
 
-  doc
-    .fontSize(10)
-    .text(
-      `Total: ${total}   Completadas: ${completadas}   En progreso: ${progreso}   Pendientes: ${pendientes}   Con incidencia: ${incidencias}   Avance: ${avance}%`
-    );
-  doc.moveDown(1);
-
-  function drawHeader(y: number) {
-    let x = MARGIN;
-    doc.font("Helvetica-Bold").fontSize(9);
-    for (const col of COLUMNS) {
-      doc.text(col.label, x, y, { width: col.width, ellipsis: true });
-      x += col.width;
-    }
-    doc
-      .moveTo(MARGIN, y + 14)
-      .lineTo(MARGIN + COLUMNS.reduce((a, c) => a + c.width, 0), y + 14)
-      .strokeColor("#ccc")
-      .stroke();
+  function text(t: string, x: number, yy: number, opts: { size?: number; f?: typeof font; color?: ReturnType<typeof rgb> } = {}) {
+    page.drawText(t, {
+      x,
+      y: yy,
+      size: opts.size ?? 9,
+      font: opts.f ?? font,
+      color: opts.color ?? rgb(0, 0, 0),
+      maxWidth: undefined,
+    });
   }
 
-  let y = doc.y;
-  drawHeader(y);
-  y += 20;
+  function ellipsize(s: string, maxChars: number) {
+    return s.length > maxChars ? s.slice(0, maxChars - 1) + "…" : s;
+  }
 
-  doc.font("Helvetica").fontSize(9);
+  text("ToolsIT Control Center", MARGIN, y, { size: 18, f: bold });
+  y -= 22;
+  text("Reporte de tiendas", MARGIN, y, { size: 12 });
+  y -= 16;
+  text(`Generado: ${new Date().toLocaleString("es-PA")}`, MARGIN, y, { size: 9, color: rgb(0.4, 0.4, 0.4) });
+  y -= 20;
+
+  text(
+    `Total: ${total}   Completadas: ${completadas}   En progreso: ${enProgreso}   Pendientes: ${pendientes}   Con incidencia: ${incidencias}   Avance: ${avance}%`,
+    MARGIN,
+    y,
+    { size: 10 }
+  );
+  y -= 24;
+
+  function drawTableHeader() {
+    let x = MARGIN;
+    for (const col of COLUMNS) {
+      text(col.label, x, y, { size: 9, f: bold });
+      x += col.width;
+    }
+    y -= 6;
+    page.drawLine({
+      start: { x: MARGIN, y },
+      end: { x: MARGIN + COLUMNS.reduce((a, c) => a + c.width, 0), y },
+      thickness: 0.5,
+      color: rgb(0.8, 0.8, 0.8),
+    });
+    y -= 14;
+  }
+
+  drawTableHeader();
+
+  const charsPerWidth = (w: number) => Math.floor(w / 5);
+
   for (const r of rows) {
-    if (y > PAGE_BOTTOM) {
-      doc.addPage();
-      y = MARGIN;
-      drawHeader(y);
-      y += 20;
-      doc.font("Helvetica").fontSize(9);
+    if (y < MARGIN + 20) {
+      page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      y = PAGE_HEIGHT - MARGIN;
+      drawTableHeader();
     }
     let x = MARGIN;
     const values: Record<(typeof COLUMNS)[number]["key"], string> = {
@@ -87,17 +101,16 @@ export async function GET() {
       tecnico: r.tecnico,
     };
     for (const col of COLUMNS) {
-      doc.text(values[col.key], x, y, { width: col.width, ellipsis: true });
+      text(ellipsize(values[col.key], charsPerWidth(col.width)), x, y, { size: 9 });
       x += col.width;
     }
-    y += 16;
+    y -= 16;
   }
 
-  doc.end();
-  const buffer = await done;
+  const bytes = await doc.save();
   const filename = `reporte-tiendas-${new Date().toISOString().slice(0, 10)}.pdf`;
 
-  return new NextResponse(buffer, {
+  return new NextResponse(Buffer.from(bytes), {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${filename}"`,
