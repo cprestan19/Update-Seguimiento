@@ -94,7 +94,7 @@ const CATEGORIES_SEED = [
   {
     nombre: "Prueba de transacción",
     orden: 3,
-    items: ["Cliente rápido", "Cambio de moneda", "Compra de empleado", "Número fiscal"],
+    items: ["Cliente rápido", "Cambio de moneda", "Compra de empleado", "Factura electrónica"],
   },
   {
     nombre: "Validación final",

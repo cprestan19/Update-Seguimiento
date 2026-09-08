@@ -53,6 +53,13 @@ function toDatetimeLocalValue(iso: string | null): string {
   return local.toISOString().slice(0, 16);
 }
 
+function minutosEntre(inicio: string | null, fin: string | null): number {
+  if (!inicio) return 0;
+  const start = new Date(inicio).getTime();
+  const end = fin ? new Date(fin).getTime() : Date.now();
+  return Math.max(0, Math.round((end - start) / 60000));
+}
+
 function formatFechaHora(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("es-PA", {
@@ -256,7 +263,13 @@ export default function StoreDetailPage() {
         <div className="bg-panel border border-border rounded-lg px-2.5 py-2">
           <div className="text-[10px] uppercase tracking-wide text-muted mb-1">Tiempo</div>
           <div className="text-sm font-mono">
-            {store.duracionRealMin != null ? `${store.duracionRealMin} min reales` : `Est. ${store.tiempoEstimadoMin} min`}
+            {store.duracionRealMin != null ? (
+              `${store.duracionRealMin} min reales`
+            ) : store.inicioReal ? (
+              `${minutosEntre(store.inicioReal, null)} min (en curso)`
+            ) : (
+              `Est. ${store.tiempoEstimadoMin} min`
+            )}
           </div>
         </div>
       </div>
@@ -415,7 +428,7 @@ export default function StoreDetailPage() {
                   }`}
                   title={it.noAplica ? "Volver a marcar como aplicable" : "Marcar como no aplica"}
                 >
-                  N/A
+                  No aplica
                 </button>
               </div>
             ))}
