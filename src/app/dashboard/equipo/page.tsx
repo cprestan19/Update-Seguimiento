@@ -54,6 +54,7 @@ export default function EquipoPage() {
   const [editError, setEditError] = useState<string | null>(null);
 
   const [shareInfo, setShareInfo] = useState<ShareInfo | null>(null);
+  const [showOnlineList, setShowOnlineList] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/users");
@@ -157,16 +158,39 @@ export default function EquipoPage() {
     load();
   }
 
+  const onlineUsers = users.filter((u) => u.online);
+
   if (status === "loading") return <div className="text-muted text-sm py-10 text-center">Cargando...</div>;
 
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
         <h1 className="font-display text-lg">Equipo de migración</h1>
-        <span className="text-xs text-muted flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-teal" />
-          {users.filter((u) => u.online).length} conectado{users.filter((u) => u.online).length === 1 ? "" : "s"} ahora
-        </span>
+        <div className="relative">
+          <button
+            type="button"
+            onMouseEnter={() => setShowOnlineList(true)}
+            onMouseLeave={() => setShowOnlineList(false)}
+            onClick={() => setShowOnlineList((v) => !v)}
+            className="text-xs text-muted flex items-center gap-1.5"
+          >
+            <span className="w-2 h-2 rounded-full bg-teal" />
+            {onlineUsers.length} conectado{onlineUsers.length === 1 ? "" : "s"} ahora
+          </button>
+          {showOnlineList && onlineUsers.length > 0 && (
+            <div className="absolute right-0 top-full mt-2 z-10 bg-panel2 border border-border rounded-lg p-2.5 min-w-[170px] shadow-lg">
+              <div className="text-[10px] uppercase tracking-wide text-muted mb-1.5">En línea</div>
+              <ul className="space-y-1">
+                {onlineUsers.map((u) => (
+                  <li key={u.id} className="text-xs text-text flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal shrink-0" />
+                    {u.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
       <p className="text-xs text-muted mb-6">
         Aquí das de alta a técnicos, auditores TI y auditores de inventario, con su usuario y contraseña de acceso.
