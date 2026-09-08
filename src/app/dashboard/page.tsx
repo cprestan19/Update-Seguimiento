@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 type StoreRow = {
   id: string;
@@ -107,9 +108,16 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
+  async function refetchQuiet() {
+    const res = await fetch("/api/stores");
+    if (res.ok) setStores(await res.json());
+  }
+
   useEffect(() => {
     load();
   }, []);
+
+  useRealtimeRefresh("stores", refetchQuiet);
 
   const paises = useMemo(() => [...new Set(stores.map((s) => s.pais))].sort(), [stores]);
   const regiones = useMemo(() => [...new Set(stores.map((s) => s.region))].sort(), [stores]);

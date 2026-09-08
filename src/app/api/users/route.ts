@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { publishChange } from "@/lib/realtime";
 
 // Cualquier usuario autenticado puede leer el listado (lo necesitan los
 // selectores de tecnico/auditor al reasignar personal en una tienda).
@@ -54,7 +55,7 @@ export async function POST(req: Request) {
     name: string;
     username: string;
     password: string;
-    role: "ADMIN" | "USER";
+    role: "ADMIN" | "USER" | "MONITOR";
     personnelRole?: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
     pais?: string | null;
   };
@@ -88,6 +89,7 @@ export async function POST(req: Request) {
   await prisma.auditLog.create({
     data: { userId: session.user.id, accion: "USUARIO_CREADO", detalle: `Creado: ${user.username}` },
   });
+  await publishChange("users");
 
   return NextResponse.json(user);
 }

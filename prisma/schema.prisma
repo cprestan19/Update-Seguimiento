@@ -17,6 +17,7 @@ datasource db {
 enum Role {
   ADMIN
   USER
+  MONITOR
 }
 
 enum PersonnelRole {

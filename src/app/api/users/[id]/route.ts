@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { publishChange } from "@/lib/realtime";
 
 // Edita datos del usuario (nombre, usuario, rol, país, contraseña) y permite
 // reactivarlo (active: true) — es la única forma de revertir una desactivación.
@@ -18,7 +19,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     name?: string;
     username?: string;
     password?: string;
-    role?: "ADMIN" | "USER";
+    role?: "ADMIN" | "USER" | "MONITOR";
     personnelRole?: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
     pais?: string | null;
     active?: boolean;
@@ -65,6 +66,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   await prisma.auditLog.create({
     data: { userId: session.user.id, accion: "USUARIO_EDITADO", detalle: JSON.stringify({ id: user.id, username: user.username }) },
   });
+  await publishChange("users");
 
   return NextResponse.json(user);
 }
@@ -93,6 +95,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   await prisma.auditLog.create({
     data: { userId: session.user.id, accion: "USUARIO_DESACTIVADO", detalle: user.username },
   });
+  await publishChange("users");
 
   return NextResponse.json({ ok: true });
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { publishChange } from "@/lib/realtime";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -29,6 +30,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (session.user.role === "MONITOR") {
+    return NextResponse.json({ error: "El rol Monitor solo puede ver, no editar" }, { status: 403 });
+  }
 
   const body = await req.json();
   const {
@@ -106,6 +110,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const store = await prisma.store.update({ where: { id: params.id }, data });
+  await publishChange("stores");
 
   await prisma.auditLog.create({
     data: {

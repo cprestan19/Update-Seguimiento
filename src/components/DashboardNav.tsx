@@ -10,7 +10,7 @@ export default function DashboardNav({
   role,
 }: {
   name: string;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "MONITOR";
 }) {
   const pathname = usePathname();
 

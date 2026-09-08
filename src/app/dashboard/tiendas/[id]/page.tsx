@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 type Person = { id: string; name: string };
 
@@ -53,6 +54,13 @@ function toDatetimeLocalValue(iso: string | null): string {
   return local.toISOString().slice(0, 16);
 }
 
+// Si aún no hay hora de inicio registrada, precarga la fecha de hoy (con
+// hora en blanco) para que la persona solo tenga que escribir la hora.
+function defaultInicioLocal(): string {
+  const local = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+  return `${local.toISOString().slice(0, 10)}T00:00`;
+}
+
 function minutosEntre(inicio: string | null, fin: string | null): number {
   if (!inicio) return 0;
   const start = new Date(inicio).getTime();
@@ -81,6 +89,7 @@ export default function StoreDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { data: session } = useSession();
+  const isMonitor = session?.user?.role === "MONITOR";
 
   const [store, setStore] = useState<StoreDetail | null>(null);
   const [tecnicos, setTecnicos] = useState<Person[]>([]);
@@ -103,13 +112,15 @@ export default function StoreDetailPage() {
     load();
   }, [load]);
 
+  useRealtimeRefresh("stores", load);
+
   useEffect(() => {
     if (!store) return;
     setInventarioInicial(store.inventarioInicial != null ? String(store.inventarioInicial) : "");
     setInventarioFinal(store.inventarioFinal != null ? String(store.inventarioFinal) : "");
     setCostoInicial(store.costoInicial != null ? String(store.costoInicial) : "");
     setCostoFinal(store.costoFinal != null ? String(store.costoFinal) : "");
-    setInicioReal(toDatetimeLocalValue(store.inicioReal));
+    setInicioReal(store.inicioReal ? toDatetimeLocalValue(store.inicioReal) : defaultInicioLocal());
     // Solo re-sincroniza al cambiar de tienda, para no pisar lo que el usuario está escribiendo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store?.id]);
@@ -242,21 +253,21 @@ export default function StoreDetailPage() {
           label="Técnico"
           value={store.tecnico}
           options={tecnicos}
-          editable={!!session}
+          editable={!!session && !isMonitor}
           onChange={(v) => assign("tecnicoId", v)}
         />
         <AssignField
           label="Auditor TI"
           value={store.auditorTI}
           options={auditoresTI}
-          editable={!!session}
+          editable={!!session && !isMonitor}
           onChange={(v) => assign("auditorTIId", v)}
         />
         <AssignField
           label="Auditor inventario"
           value={store.auditorInv}
           options={auditoresInv}
-          editable={!!session}
+          editable={!!session && !isMonitor}
           onChange={(v) => assign("auditorInvId", v)}
         />
         <div className="bg-panel border border-border rounded-lg px-2.5 py-2">
@@ -284,6 +295,7 @@ export default function StoreDetailPage() {
               value={inventarioInicial}
               onChange={(e) => setInventarioInicial(e.target.value)}
               onBlur={(e) => saveCampoTienda("inventarioInicial", e.target.value)}
+              disabled={isMonitor}
               placeholder="Sin registrar"
               className="w-full bg-transparent text-sm font-mono focus:outline-none placeholder:text-muted2 placeholder:italic placeholder:text-xs"
             />
@@ -296,6 +308,7 @@ export default function StoreDetailPage() {
               value={inventarioFinal}
               onChange={(e) => setInventarioFinal(e.target.value)}
               onBlur={(e) => saveCampoTienda("inventarioFinal", e.target.value)}
+              disabled={isMonitor}
               placeholder="Sin registrar"
               className="w-full bg-transparent text-sm font-mono focus:outline-none placeholder:text-muted2 placeholder:italic placeholder:text-xs"
             />
@@ -324,6 +337,7 @@ export default function StoreDetailPage() {
                 value={costoInicial}
                 onChange={(e) => setCostoInicial(e.target.value)}
                 onBlur={(e) => saveCampoTienda("costoInicial", e.target.value)}
+                disabled={isMonitor}
                 placeholder="Sin registrar"
                 className="w-full bg-transparent text-sm font-mono focus:outline-none placeholder:text-muted2 placeholder:italic placeholder:text-xs"
               />
@@ -340,6 +354,7 @@ export default function StoreDetailPage() {
                 value={costoFinal}
                 onChange={(e) => setCostoFinal(e.target.value)}
                 onBlur={(e) => saveCampoTienda("costoFinal", e.target.value)}
+                disabled={isMonitor}
                 placeholder="Sin registrar"
                 className="w-full bg-transparent text-sm font-mono focus:outline-none placeholder:text-muted2 placeholder:italic placeholder:text-xs"
               />
@@ -364,6 +379,7 @@ export default function StoreDetailPage() {
               value={inicioReal}
               onChange={(e) => setInicioReal(e.target.value)}
               onBlur={(e) => saveInicioReal(e.target.value)}
+              disabled={isMonitor}
               className="w-full bg-transparent text-sm font-mono focus:outline-none [color-scheme:dark]"
             />
           </div>
@@ -402,13 +418,13 @@ export default function StoreDetailPage() {
                 <input
                   type="checkbox"
                   checked={it.completado}
-                  disabled={it.noAplica}
+                  disabled={it.noAplica || isMonitor}
                   onChange={() => toggle(it.id)}
                   className="w-[18px] h-[18px] rounded accent-teal disabled:cursor-not-allowed"
                 />
                 <span
-                  onClick={() => !it.noAplica && toggle(it.id)}
-                  className={`text-sm flex-1 ${!it.noAplica ? "cursor-pointer" : ""} ${
+                  onClick={() => !it.noAplica && !isMonitor && toggle(it.id)}
+                  className={`text-sm flex-1 ${!it.noAplica && !isMonitor ? "cursor-pointer" : ""} ${
                     it.completado || it.noAplica ? "line-through text-muted" : ""
                   } ${it.noAplica ? "italic" : ""}`}
                 >
@@ -417,18 +433,20 @@ export default function StoreDetailPage() {
                 {it.completado && it.completadoPor && !it.noAplica && (
                   <span className="text-[10px] text-muted2">{it.completadoPor.name}</span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => toggleNoAplica(it.id)}
-                  className={`shrink-0 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border transition ${
-                    it.noAplica
-                      ? "bg-amberDim text-amber border-amber/30"
-                      : "text-muted2 border-border hover:text-amber hover:border-amber/40"
-                  }`}
-                  title={it.noAplica ? "Volver a marcar como aplicable" : "Marcar como no aplica"}
-                >
-                  No aplica
-                </button>
+                {!isMonitor && (
+                  <button
+                    type="button"
+                    onClick={() => toggleNoAplica(it.id)}
+                    className={`shrink-0 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border transition ${
+                      it.noAplica
+                        ? "bg-amberDim text-amber border-amber/30"
+                        : "text-muted2 border-border hover:text-amber hover:border-amber/40"
+                    }`}
+                    title={it.noAplica ? "Volver a marcar como aplicable" : "Marcar como no aplica"}
+                  >
+                    No aplica
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -451,7 +469,7 @@ export default function StoreDetailPage() {
               <span className={`font-semibold uppercase text-[11px] ${inc.resuelta ? "text-muted" : "text-red"}`}>
                 {inc.severidad} {inc.resuelta && "· Resuelta"}
               </span>
-              {!inc.resuelta && (
+              {!inc.resuelta && !isMonitor && (
                 <button onClick={() => resolveIncident(inc.id)} className="text-teal text-[11px] hover:underline">
                   Marcar resuelta
                 </button>
@@ -461,30 +479,32 @@ export default function StoreDetailPage() {
             {inc.createdBy && <div className="text-muted2 mt-1">— {inc.createdBy.name}</div>}
           </div>
         ))}
-        <div className="flex gap-2 mt-3">
-          <select
-            value={newIncidentSev}
-            onChange={(e) => setNewIncidentSev(e.target.value)}
-            className="bg-panel2 border border-border rounded-lg px-2 text-xs"
-          >
-            <option value="BAJA">Baja</option>
-            <option value="MEDIA">Media</option>
-            <option value="ALTA">Alta</option>
-            <option value="CRITICA">Crítica</option>
-          </select>
-          <input
-            value={newIncidentText}
-            onChange={(e) => setNewIncidentText(e.target.value)}
-            placeholder="Describir nueva incidencia..."
-            className="flex-1 bg-panel2 border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue"
-          />
-          <button
-            onClick={addIncident}
-            className="bg-redDim text-red border border-[#4A1C24] rounded-lg px-3 text-xs font-semibold"
-          >
-            Registrar
-          </button>
-        </div>
+        {!isMonitor && (
+          <div className="flex gap-2 mt-3">
+            <select
+              value={newIncidentSev}
+              onChange={(e) => setNewIncidentSev(e.target.value)}
+              className="bg-panel2 border border-border rounded-lg px-2 text-xs"
+            >
+              <option value="BAJA">Baja</option>
+              <option value="MEDIA">Media</option>
+              <option value="ALTA">Alta</option>
+              <option value="CRITICA">Crítica</option>
+            </select>
+            <input
+              value={newIncidentText}
+              onChange={(e) => setNewIncidentText(e.target.value)}
+              placeholder="Describir nueva incidencia..."
+              className="flex-1 bg-panel2 border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue"
+            />
+            <button
+              onClick={addIncident}
+              className="bg-redDim text-red border border-[#4A1C24] rounded-lg px-3 text-xs font-semibold"
+            >
+              Registrar
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

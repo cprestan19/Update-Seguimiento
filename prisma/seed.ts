@@ -89,7 +89,7 @@ const CATEGORIES_SEED = [
   {
     nombre: "Actualización de equipos",
     orden: 2,
-    items: ["Servidor (SVR)", "Caja 1", "Caja 2"],
+    items: ["Servidor (SVR)", "Caja 1", "Caja 2", "Creación de perfiles de comunicación"],
   },
   {
     nombre: "Prueba de transacción",

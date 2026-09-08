@@ -3,12 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 type PersonRow = {
   id: string;
   name: string;
   username: string;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "MONITOR";
   personnelRole: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
   pais: string | null;
   active: boolean;
@@ -72,6 +73,8 @@ export default function EquipoPage() {
     const interval = setInterval(load, 30_000);
     return () => clearInterval(interval);
   }, [status, load]);
+
+  useRealtimeRefresh("users", load);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -205,6 +208,7 @@ export default function EquipoPage() {
             >
               <option value="USER">Usuario</option>
               <option value="ADMIN">Administrador</option>
+              <option value="MONITOR">Monitor (solo ver)</option>
             </select>
           </Field>
           <Field label="Rol funcional">

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recalcularEstadoTienda } from "@/lib/storeStatus";
+import { publishChange } from "@/lib/realtime";
 
 // Marca/desmarca un item del checklist como "No aplica" para esa tienda.
 // Un item marcado no aplica se excluye del total de progreso y no cuenta
@@ -10,6 +11,9 @@ import { recalcularEstadoTienda } from "@/lib/storeStatus";
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (session.user.role === "MONITOR") {
+    return NextResponse.json({ error: "El rol Monitor solo puede ver, no editar" }, { status: 403 });
+  }
 
   const { storeChecklistItemId } = (await req.json()) as { storeChecklistItemId: string };
   if (!storeChecklistItemId) {
@@ -34,6 +38,7 @@ export async function POST(req: Request) {
   });
 
   await recalcularEstadoTienda(current.storeId);
+  await publishChange("stores");
 
   await prisma.auditLog.create({
     data: {

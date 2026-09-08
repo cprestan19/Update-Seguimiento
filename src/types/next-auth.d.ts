@@ -5,7 +5,7 @@ declare module "next-auth" {
     user: {
       id: string;
       username: string;
-      role: "ADMIN" | "USER";
+      role: "ADMIN" | "USER" | "MONITOR";
       personnelRole: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
     } & DefaultSession["user"];
   }

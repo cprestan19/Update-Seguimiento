@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { publishChange } from "@/lib/realtime";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (session.user.role === "MONITOR") {
+    return NextResponse.json({ error: "El rol Monitor solo puede ver, no editar" }, { status: 403 });
+  }
 
   const { storeId, severidad, descripcion } = (await req.json()) as {
     storeId: string;
@@ -30,6 +34,7 @@ export async function POST(req: Request) {
     where: { id: storeId },
     data: { estado: "CON_INCIDENCIA" },
   });
+  await publishChange("stores");
 
   await prisma.auditLog.create({
     data: {
