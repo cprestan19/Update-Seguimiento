@@ -68,6 +68,13 @@ function minutosEntre(inicio: string | null, fin: string | null): number {
   return Math.max(0, Math.round((end - start) / 60000));
 }
 
+function formatHorasMinutos(totalMin: number): string {
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h <= 0) return `${m} min`;
+  return `${h}h ${m}min`;
+}
+
 function formatFechaHora(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("es-PA", {
@@ -274,11 +281,11 @@ export default function StoreDetailPage() {
           <div className="text-[10px] uppercase tracking-wide text-muted mb-1">Tiempo</div>
           <div className="text-sm font-mono">
             {store.duracionRealMin != null ? (
-              `${store.duracionRealMin} min reales`
+              `${formatHorasMinutos(store.duracionRealMin)} reales`
             ) : store.inicioReal ? (
-              `${minutosEntre(store.inicioReal, null)} min (en curso)`
+              `${formatHorasMinutos(minutosEntre(store.inicioReal, null))} (en curso)`
             ) : (
-              `Est. ${store.tiempoEstimadoMin} min`
+              `Est. ${formatHorasMinutos(store.tiempoEstimadoMin)}`
             )}
           </div>
         </div>
