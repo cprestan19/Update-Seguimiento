@@ -134,6 +134,7 @@ model StoreChecklistItem {
   completadoPorId String?
   completadoPor   User?             @relation("ChecklistCompletedBy", fields: [completadoPorId], references: [id])
   completadoEn    DateTime?
+  noAplica        Boolean           @default(false)
 
   @@unique([storeId, itemDefId])
   @@map("store_checklist_items")

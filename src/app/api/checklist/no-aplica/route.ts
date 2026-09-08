@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recalcularEstadoTienda } from "@/lib/storeStatus";
 
+// Marca/desmarca un item del checklist como "No aplica" para esa tienda.
+// Un item marcado no aplica se excluye del total de progreso y no cuenta
+// como pendiente.
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -17,18 +20,16 @@ export async function POST(req: Request) {
     where: { id: storeChecklistItemId },
   });
   if (!current) return NextResponse.json({ error: "Item no encontrado" }, { status: 404 });
-  if (current.noAplica) {
-    return NextResponse.json({ error: "Este item está marcado como no aplica" }, { status: 400 });
-  }
 
-  const nuevoValor = !current.completado;
+  const nuevoValor = !current.noAplica;
 
   const updated = await prisma.storeChecklistItem.update({
     where: { id: storeChecklistItemId },
     data: {
-      completado: nuevoValor,
-      completadoPorId: nuevoValor ? session.user.id : null,
-      completadoEn: nuevoValor ? new Date() : null,
+      noAplica: nuevoValor,
+      completado: false,
+      completadoPorId: null,
+      completadoEn: null,
     },
   });
 
@@ -37,9 +38,9 @@ export async function POST(req: Request) {
   await prisma.auditLog.create({
     data: {
       userId: session.user.id,
-      accion: "CHECKLIST_TOGGLE",
+      accion: "CHECKLIST_NO_APLICA",
       entidad: `StoreChecklistItem:${storeChecklistItemId}`,
-      detalle: `completado=${nuevoValor}`,
+      detalle: `noAplica=${nuevoValor}`,
     },
   });
 

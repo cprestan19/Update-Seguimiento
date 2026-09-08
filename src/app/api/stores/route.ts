@@ -13,14 +13,15 @@ export async function GET() {
       tecnico: { select: { id: true, name: true } },
       auditorTI: { select: { id: true, name: true } },
       auditorInv: { select: { id: true, name: true } },
-      checklist: { select: { completado: true } },
+      checklist: { select: { completado: true, noAplica: true } },
       incidents: { where: { resuelta: false }, select: { id: true } },
     },
   });
 
   const data = stores.map((s) => {
-    const total = s.checklist.length;
-    const done = s.checklist.filter((c) => c.completado).length;
+    const aplicables = s.checklist.filter((c) => !c.noAplica);
+    const total = aplicables.length;
+    const done = aplicables.filter((c) => c.completado).length;
     return {
       id: s.id,
       pais: s.pais,
@@ -34,7 +35,7 @@ export async function GET() {
       auditorInv: s.auditorInv,
       tiempoEstimadoMin: s.tiempoEstimadoMin,
       duracionRealMin: s.duracionRealMin,
-      progreso: total > 0 ? Math.round((done / total) * 100) : 0,
+      progreso: total > 0 ? Math.round((done / total) * 100) : 100,
       incidenciasAbiertas: s.incidents.length,
     };
   });

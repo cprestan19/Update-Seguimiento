@@ -258,6 +258,18 @@ export default function DashboardPage() {
         <span className="text-xs text-muted w-full sm:w-auto sm:ml-auto">
           {filtered.length} de {stores.length} tiendas
         </span>
+        <a
+          href="/api/reports/excel"
+          className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-teal hover:border-teal/40 transition"
+        >
+          Excel
+        </a>
+        <a
+          href="/api/reports/pdf"
+          className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-red hover:border-red/40 transition"
+        >
+          PDF
+        </a>
       </div>
 
       {/* Tabla — desktop / tablet */}

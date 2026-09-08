@@ -9,6 +9,7 @@ type Person = { id: string; name: string };
 type ChecklistRow = {
   id: string;
   completado: boolean;
+  noAplica: boolean;
   completadoPor: { name: string } | null;
   completadoEn: string | null;
   itemDef: { nombre: string; category: { nombre: string; orden: number } };
@@ -99,9 +100,10 @@ export default function StoreDetailPage() {
 
   if (!store) return <div className="text-muted text-sm py-10 text-center">Cargando...</div>;
 
-  const total = store.checklist.length;
-  const done = store.checklist.filter((c) => c.completado).length;
-  const pct = total ? Math.round((done / total) * 100) : 0;
+  const aplicables = store.checklist.filter((c) => !c.noAplica);
+  const total = aplicables.length;
+  const done = aplicables.filter((c) => c.completado).length;
+  const pct = total ? Math.round((done / total) * 100) : 100;
 
   const categories = Array.from(
     new Map(store.checklist.map((c) => [c.itemDef.category.nombre, c.itemDef.category.orden])).entries()
@@ -109,6 +111,15 @@ export default function StoreDetailPage() {
 
   async function toggle(storeChecklistItemId: string) {
     await fetch("/api/checklist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeChecklistItemId }),
+    });
+    load();
+  }
+
+  async function toggleNoAplica(storeChecklistItemId: string) {
+    await fetch("/api/checklist/no-aplica", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ storeChecklistItemId }),
@@ -303,30 +314,54 @@ export default function StoreDetailPage() {
 
       {categories.map(([catName]) => {
         const items = store.checklist.filter((c) => c.itemDef.category.nombre === catName);
-        const catDone = items.filter((i) => i.completado).length;
+        const catAplicables = items.filter((i) => !i.noAplica);
+        const catDone = catAplicables.filter((i) => i.completado).length;
         return (
           <div key={catName} className="mb-4">
             <div className="flex justify-between text-xs uppercase tracking-wide text-muted border-b border-border pb-2 mb-2">
               <span className="text-text font-semibold">{catName}</span>
               <span>
-                {catDone}/{items.length}
+                {catDone}/{catAplicables.length}
               </span>
             </div>
             {items.map((it) => (
-              <label key={it.id} className="flex items-center gap-2.5 py-1.5 px-1 rounded hover:bg-[#141A24] cursor-pointer">
+              <div
+                key={it.id}
+                className={`flex items-center gap-2.5 py-1.5 px-1 rounded ${
+                  it.noAplica ? "opacity-50" : "hover:bg-[#141A24]"
+                }`}
+              >
                 <input
                   type="checkbox"
                   checked={it.completado}
+                  disabled={it.noAplica}
                   onChange={() => toggle(it.id)}
-                  className="w-[18px] h-[18px] rounded accent-teal"
+                  className="w-[18px] h-[18px] rounded accent-teal disabled:cursor-not-allowed"
                 />
-                <span className={`text-sm flex-1 ${it.completado ? "line-through text-muted" : ""}`}>
+                <span
+                  onClick={() => !it.noAplica && toggle(it.id)}
+                  className={`text-sm flex-1 ${!it.noAplica ? "cursor-pointer" : ""} ${
+                    it.completado || it.noAplica ? "line-through text-muted" : ""
+                  } ${it.noAplica ? "italic" : ""}`}
+                >
                   {it.itemDef.nombre}
                 </span>
-                {it.completado && it.completadoPor && (
+                {it.completado && it.completadoPor && !it.noAplica && (
                   <span className="text-[10px] text-muted2">{it.completadoPor.name}</span>
                 )}
-              </label>
+                <button
+                  type="button"
+                  onClick={() => toggleNoAplica(it.id)}
+                  className={`shrink-0 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border transition ${
+                    it.noAplica
+                      ? "bg-amberDim text-amber border-amber/30"
+                      : "text-muted2 border-border hover:text-amber hover:border-amber/40"
+                  }`}
+                  title={it.noAplica ? "Volver a marcar como aplicable" : "Marcar como no aplica"}
+                >
+                  N/A
+                </button>
+              </div>
             ))}
           </div>
         );
