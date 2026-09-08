@@ -2,6 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import {
+  motion,
+  AnimatePresence,
+  useMotionValue,
+  useTransform,
+  useReducedMotion,
+  animate,
+} from "framer-motion";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 type StoreRow = {
@@ -89,6 +97,7 @@ export default function DashboardPage() {
   const [pais, setPais] = useState("");
   const [region, setRegion] = useState("");
   const [estado, setEstado] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
 
   function filterByEstado(value: string) {
@@ -121,6 +130,7 @@ export default function DashboardPage() {
 
   const paises = useMemo(() => [...new Set(stores.map((s) => s.pais))].sort(), [stores]);
   const regiones = useMemo(() => [...new Set(stores.map((s) => s.region))].sort(), [stores]);
+  const filtrosActivos = [pais, region, estado].filter(Boolean).length;
 
   const filtered = useMemo(() => {
     return stores.filter((s) => {
@@ -148,15 +158,17 @@ export default function DashboardPage() {
     return { total, completadas, progreso, pendientes, incidencias, avance };
   }, [stores]);
 
-  const estadoCounts = useMemo(
-    () => [
-      { key: "COMPLETADA", label: "Completada", count: kpis.completadas, color: ESTADO_COLOR.COMPLETADA },
-      { key: "EN_PROGRESO", label: "En progreso", count: kpis.progreso, color: ESTADO_COLOR.EN_PROGRESO },
-      { key: "PENDIENTE", label: "Pendiente", count: kpis.pendientes, color: ESTADO_COLOR.PENDIENTE },
-      { key: "CON_INCIDENCIA", label: "Con incidencia", count: kpis.incidencias, color: ESTADO_COLOR.CON_INCIDENCIA },
-    ],
-    [kpis]
-  );
+  // Avance de migración: usa exactamente el mismo conjunto filtrado que el
+  // resto del dashboard — sin lógica de cálculo independiente.
+  const avanceFiltrado = useMemo(() => {
+    const total = filtered.length;
+    const completadas = filtered.filter((s) => s.estado === "COMPLETADA").length;
+    const progreso = filtered.filter((s) => s.estado === "EN_PROGRESO").length;
+    const pendientes = filtered.filter((s) => s.estado === "PENDIENTE").length;
+    const incidencias = filtered.filter((s) => s.estado === "CON_INCIDENCIA").length;
+    const pct = total > 0 ? Math.round((completadas / total) * 100) : 0;
+    return { total, completadas, progreso, pendientes, incidencias, pct };
+  }, [filtered]);
 
   const paisAvance = useMemo(() => buildPaisAvance(stores), [stores]);
 
@@ -170,8 +182,13 @@ export default function DashboardPage() {
   }
 
   return (
-    <div>
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5"
+    >
+      <div className="order-2 lg:order-1 lg:col-span-2 grid grid-cols-2 md:grid-cols-6 gap-3">
         <Kpi label="Tiendas" value={kpis.total} active={estado === ""} onClick={() => filterByEstado("")} />
         <Kpi
           label="Completadas"
@@ -204,8 +221,11 @@ export default function DashboardPage() {
         <Kpi label="Avance" value={`${kpis.avance}%`} color="text-teal" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <EstadoChart counts={estadoCounts} onSelect={filterByEstado} selected={estado} />
+      <div className="order-1 lg:order-2">
+        <AvanceMigracionCard data={avanceFiltrado} selected={estado} onSelect={filterByEstado} />
+      </div>
+
+      <div className="order-4 lg:order-2">
         <PaisAvanceChart
           rows={paisAvance}
           onSelect={(p) => {
@@ -218,164 +238,217 @@ export default function DashboardPage() {
         />
       </div>
 
-      <AtencionSection items={atencion} />
-
-      <div ref={tableRef} className="flex flex-wrap gap-2.5 mb-4 items-center">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar tienda o región..."
-          className="bg-panel border border-border rounded-lg px-3 py-2 text-sm min-w-[220px] flex-1 sm:flex-none focus:outline-none focus:ring-2 focus:ring-blue"
-        />
-        <select
-          value={pais}
-          onChange={(e) => setPais(e.target.value)}
-          className="bg-panel border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue"
-        >
-          <option value="">Todos los países</option>
-          {paises.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-        <select
-          value={region}
-          onChange={(e) => setRegion(e.target.value)}
-          className="bg-panel border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue"
-        >
-          <option value="">Todas las regiones</option>
-          {regiones.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-        <select
-          value={estado}
-          onChange={(e) => setEstado(e.target.value)}
-          className="bg-panel border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue"
-        >
-          <option value="">Todos los estados</option>
-          {Object.entries(ESTADO_LABEL).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
-        <span className="text-xs text-muted w-full sm:w-auto sm:ml-auto">
-          {filtered.length} de {stores.length} tiendas
-        </span>
-        <a
-          href="/api/reports/excel"
-          className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-teal hover:border-teal/40 transition"
-        >
-          Excel
-        </a>
-        <a
-          href="/api/reports/pdf"
-          className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-red hover:border-red/40 transition"
-        >
-          PDF
-        </a>
+      <div className="order-3 lg:order-3 lg:col-span-2">
+        <AtencionSection items={atencion} />
       </div>
 
-      {/* Tabla — desktop / tablet */}
-      <div className="hidden md:block bg-panel border border-border rounded-2xl overflow-hidden overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-panel2 text-[11px] uppercase tracking-wide text-muted">
-              <th className="text-left px-4 py-3 font-semibold">Estado</th>
-              <th className="text-left px-4 py-3 font-semibold">País</th>
-              <th className="text-left px-4 py-3 font-semibold">Tienda</th>
-              <th className="text-left px-4 py-3 font-semibold">Horario</th>
-              <th className="text-left px-4 py-3 font-semibold">Técnico</th>
-              <th className="text-left px-4 py-3 font-semibold">Progreso</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedFiltered.map((s) => (
-              <tr key={s.id} className="border-b border-border last:border-none hover:bg-[#151C27]">
-                <td className="px-4 py-2.5">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${ESTADO_BADGE[s.estado]}`}>
-                    <span
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: ESTADO_COLOR[s.estado] }}
-                    />
-                    {ESTADO_LABEL[s.estado]}
-                    {s.incidenciasAbiertas > 0 ? ` (${s.incidenciasAbiertas})` : ""}
-                  </span>
-                </td>
-                <td className="px-4 py-2.5">{s.pais}</td>
-                <td className="px-4 py-2.5">
-                  <Link href={`/dashboard/tiendas/${s.id}`} className="font-medium hover:text-teal">
-                    {s.tienda}
-                  </Link>
-                  <div className="text-[12px] text-muted">{s.region}</div>
-                </td>
-                <td className="px-4 py-2.5 font-mono text-muted text-xs">{s.horario}</td>
-                <td className="px-4 py-2.5">
-                  {s.tecnico ? s.tecnico.name : <span className="text-muted2 italic text-xs">Sin asignar</span>}
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="w-24 h-1.5 rounded bg-panel2 overflow-hidden">
-                    <div
-                      className="h-full rounded"
-                      style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }}
-                    />
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {sortedFiltered.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted text-sm">
-                  No hay tiendas que coincidan con los filtros.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Tarjetas — mobile */}
-      <div className="md:hidden space-y-2.5">
-        {sortedFiltered.map((s) => (
-          <Link
-            key={s.id}
-            href={`/dashboard/tiendas/${s.id}`}
-            className="block bg-panel border border-border rounded-xl p-3.5 active:bg-[#151C27]"
+      <div ref={tableRef} className="order-5 lg:order-4 lg:col-span-2">
+        {/* Búsqueda + filtros — mobile: barra + botón que abre hoja inferior */}
+        <div className="md:hidden flex gap-2 mb-4">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar tienda..."
+            className="flex-1 bg-panel border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue"
+          />
+          <button
+            onClick={() => setFiltersOpen(true)}
+            className="relative bg-panel border border-border rounded-lg px-4 py-2.5 text-sm font-semibold text-text shrink-0 active:bg-panel2"
           >
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${ESTADO_BADGE[s.estado]}`}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: ESTADO_COLOR[s.estado] }} />
-                {ESTADO_LABEL[s.estado]}
-                {s.incidenciasAbiertas > 0 ? ` (${s.incidenciasAbiertas})` : ""}
+            Filtros
+            {filtrosActivos > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-teal text-[10px] font-bold text-[#04110F] flex items-center justify-center">
+                {filtrosActivos}
               </span>
-              <span className="font-mono text-xs text-muted shrink-0">{s.horario}</span>
-            </div>
-            <div className="font-medium text-sm">{s.tienda}</div>
-            <div className="text-xs text-muted mb-2.5">
-              {s.pais} · {s.region}
-            </div>
-            <div className="flex items-center gap-2.5">
-              <div className="flex-1 h-1.5 rounded bg-panel2 overflow-hidden">
-                <div
-                  className="h-full rounded"
-                  style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }}
-                />
+            )}
+          </button>
+        </div>
+
+        {/* Filtros — desktop / tablet, siempre visibles */}
+        <div className="hidden md:flex flex-wrap gap-2.5 mb-4 items-center">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar tienda o región..."
+            className="bg-panel border border-border rounded-lg px-3 py-2 text-sm min-w-[220px] focus:outline-none focus:ring-2 focus:ring-blue"
+          />
+          <select
+            value={pais}
+            onChange={(e) => setPais(e.target.value)}
+            className="bg-panel border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue"
+          >
+            <option value="">Todos los países</option>
+            {paises.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+          <select
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+            className="bg-panel border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue"
+          >
+            <option value="">Todas las regiones</option>
+            {regiones.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          <select
+            value={estado}
+            onChange={(e) => setEstado(e.target.value)}
+            className="bg-panel border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue"
+          >
+            <option value="">Todos los estados</option>
+            {Object.entries(ESTADO_LABEL).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-muted ml-auto">
+            {filtered.length} de {stores.length} tiendas
+          </span>
+          <a
+            href="/api/reports/excel"
+            className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-teal hover:border-teal/40 transition"
+          >
+            Excel
+          </a>
+          <a
+            href="/api/reports/pdf"
+            className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-red hover:border-red/40 transition"
+          >
+            PDF
+          </a>
+        </div>
+
+        <div className="md:hidden flex items-center justify-between mb-4">
+          <span className="text-xs text-muted">
+            {filtered.length} de {stores.length} tiendas
+          </span>
+          <div className="flex gap-2">
+            <a href="/api/reports/excel" className="text-xs font-semibold text-muted active:text-teal">
+              Excel
+            </a>
+            <a href="/api/reports/pdf" className="text-xs font-semibold text-muted active:text-red">
+              PDF
+            </a>
+          </div>
+        </div>
+
+        {/* Tabla — desktop / tablet */}
+        <div className="hidden md:block bg-panel border border-border rounded-2xl overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-panel2 text-[11px] uppercase tracking-wide text-muted">
+                <th className="text-left px-4 py-3 font-semibold">Estado</th>
+                <th className="text-left px-4 py-3 font-semibold">País</th>
+                <th className="text-left px-4 py-3 font-semibold">Tienda</th>
+                <th className="text-left px-4 py-3 font-semibold">Horario</th>
+                <th className="text-left px-4 py-3 font-semibold">Técnico</th>
+                <th className="text-left px-4 py-3 font-semibold">Progreso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedFiltered.map((s) => (
+                <tr key={s.id} className="border-b border-border last:border-none hover:bg-[#151C27]">
+                  <td className="px-4 py-2.5">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${ESTADO_BADGE[s.estado]}`}>
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: ESTADO_COLOR[s.estado] }}
+                      />
+                      {ESTADO_LABEL[s.estado]}
+                      {s.incidenciasAbiertas > 0 ? ` (${s.incidenciasAbiertas})` : ""}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5">{s.pais}</td>
+                  <td className="px-4 py-2.5">
+                    <Link href={`/dashboard/tiendas/${s.id}`} className="font-medium hover:text-teal">
+                      {s.tienda}
+                    </Link>
+                    <div className="text-[12px] text-muted">{s.region}</div>
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-muted text-xs">{s.horario}</td>
+                  <td className="px-4 py-2.5">
+                    {s.tecnico ? s.tecnico.name : <span className="text-muted2 italic text-xs">Sin asignar</span>}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="w-24 h-1.5 rounded bg-panel2 overflow-hidden">
+                      <div
+                        className="h-full rounded"
+                        style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {sortedFiltered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-muted text-sm">
+                    No hay tiendas que coincidan con los filtros.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Tarjetas — mobile */}
+        <div className="md:hidden space-y-2.5">
+          {sortedFiltered.map((s) => (
+            <Link
+              key={s.id}
+              href={`/dashboard/tiendas/${s.id}`}
+              className="block bg-panel border border-border rounded-xl p-3.5 active:bg-[#151C27] active:scale-[0.99] transition"
+            >
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${ESTADO_BADGE[s.estado]}`}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: ESTADO_COLOR[s.estado] }} />
+                  {ESTADO_LABEL[s.estado]}
+                  {s.incidenciasAbiertas > 0 ? ` (${s.incidenciasAbiertas})` : ""}
+                </span>
+                <span className="font-mono text-xs text-muted shrink-0">{s.horario}</span>
               </div>
-              <span className="text-xs text-muted shrink-0">
-                {s.tecnico ? s.tecnico.name : "Sin técnico"}
-              </span>
-            </div>
-          </Link>
-        ))}
-        {sortedFiltered.length === 0 && (
-          <p className="text-sm text-muted text-center py-8">No hay tiendas que coincidan con los filtros.</p>
-        )}
+              <div className="font-medium text-sm">{s.tienda}</div>
+              <div className="text-xs text-muted mb-2.5">
+                {s.pais} · {s.region}
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div className="flex-1 h-1.5 rounded bg-panel2 overflow-hidden">
+                  <div
+                    className="h-full rounded"
+                    style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }}
+                  />
+                </div>
+                <span className="text-xs text-muted shrink-0">
+                  {s.tecnico ? s.tecnico.name : "Sin técnico"}
+                </span>
+              </div>
+            </Link>
+          ))}
+          {sortedFiltered.length === 0 && (
+            <p className="text-sm text-muted text-center py-8">No hay tiendas que coincidan con los filtros.</p>
+          )}
+        </div>
       </div>
-    </div>
+
+      <FilterSheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        pais={pais}
+        setPais={setPais}
+        region={region}
+        setRegion={setRegion}
+        estado={estado}
+        setEstado={setEstado}
+        paises={paises}
+        regiones={regiones}
+      />
+    </motion.div>
   );
 }
 
@@ -417,41 +490,132 @@ function Kpi({
   );
 }
 
-function EstadoChart({
-  counts,
-  onSelect,
-  selected,
-}: {
-  counts: { key: string; label: string; count: number; color: string }[];
-  onSelect?: (key: string) => void;
-  selected?: string;
-}) {
-  const max = Math.max(1, ...counts.map((c) => c.count));
+function ProgressCircle({ pct }: { pct: number }) {
+  const size = 152;
+  const stroke = 12;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const reduceMotion = useReducedMotion();
+
+  const mv = useMotionValue(0);
+  const [display, setDisplay] = useState(0);
+  const offset = useTransform(mv, (v) => circumference - (v / 100) * circumference);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      mv.set(pct);
+      setDisplay(pct);
+      return;
+    }
+    const controls = animate(mv, pct, {
+      duration: 0.9,
+      ease: "easeOut",
+      onUpdate: (v) => setDisplay(Math.round(v)),
+    });
+    return () => controls.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pct, reduceMotion]);
+
   return (
-    <div className="bg-panel border border-border rounded-2xl p-4">
-      <h2 className="text-sm font-semibold font-display mb-4">Estado de las tiendas</h2>
-      <div className="space-y-3">
-        {counts.map((c) => (
-          <button
-            type="button"
-            key={c.key}
-            onClick={() => onSelect?.(selected === c.key ? "" : c.key)}
-            className={`w-full flex items-center gap-3 -mx-1.5 px-1.5 py-0.5 rounded-lg transition text-left ${
-              onSelect ? "cursor-pointer hover:bg-[#151C27]" : ""
-            } ${selected === c.key ? "bg-[#151C27]" : ""}`}
-          >
-            <span className="w-[92px] shrink-0 text-xs text-muted">{c.label}</span>
-            <div className="flex-1 h-2.5 rounded-full bg-panel2 overflow-hidden">
-              <div
-                className="h-full rounded-full"
-                style={{ width: `${(c.count / max) * 100}%`, background: c.color }}
-              />
-            </div>
-            <span className="w-7 shrink-0 text-right text-xs font-mono text-text">{c.count}</span>
-          </button>
-        ))}
+    <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#161C27" strokeWidth={stroke} fill="none" />
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#2DD4BF"
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={circumference}
+          strokeLinecap="round"
+          style={{ strokeDashoffset: offset }}
+        />
+      </svg>
+      <div className="absolute font-display text-3xl font-bold">{display}%</div>
+    </div>
+  );
+}
+
+function AvanceMigracionCard({
+  data,
+  selected,
+  onSelect,
+}: {
+  data: { total: number; completadas: number; progreso: number; pendientes: number; incidencias: number; pct: number };
+  selected: string;
+  onSelect: (estado: string) => void;
+}) {
+  function toggle(key: string) {
+    onSelect(selected === key ? "" : key);
+  }
+
+  return (
+    <div className="bg-panel border border-border rounded-2xl p-5 h-full flex flex-col items-center">
+      <h2 className="text-sm font-semibold font-display self-start mb-4">Avance de migración</h2>
+      <ProgressCircle pct={data.pct} />
+      <div className="mt-3 text-sm text-muted">
+        <span className="font-mono text-text font-semibold">{data.completadas}</span> / {data.total} tiendas
+      </div>
+      <div className="w-full grid grid-cols-2 gap-1.5 mt-5">
+        <LegendItem
+          color={ESTADO_COLOR.COMPLETADA}
+          label="Completadas"
+          value={data.completadas}
+          active={selected === "COMPLETADA"}
+          onClick={() => toggle("COMPLETADA")}
+        />
+        <LegendItem
+          color={ESTADO_COLOR.EN_PROGRESO}
+          label="En progreso"
+          value={data.progreso}
+          active={selected === "EN_PROGRESO"}
+          onClick={() => toggle("EN_PROGRESO")}
+        />
+        <LegendItem
+          color={ESTADO_COLOR.PENDIENTE}
+          label="Pendientes"
+          value={data.pendientes}
+          active={selected === "PENDIENTE"}
+          onClick={() => toggle("PENDIENTE")}
+        />
+        <LegendItem
+          color={ESTADO_COLOR.CON_INCIDENCIA}
+          label="Con incidencia"
+          value={data.incidencias}
+          active={selected === "CON_INCIDENCIA"}
+          onClick={() => toggle("CON_INCIDENCIA")}
+        />
       </div>
     </div>
+  );
+}
+
+function LegendItem({
+  color,
+  label,
+  value,
+  active,
+  onClick,
+}: {
+  color: string;
+  label: string;
+  value: number;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition text-left hover:bg-[#151C27] active:scale-[0.97] ${
+        active ? "bg-[#151C27]" : ""
+      }`}
+    >
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+      <span className="text-xs text-muted flex-1 truncate">{label}</span>
+      <span className="text-xs font-mono text-text">{value}</span>
+    </button>
   );
 }
 
@@ -463,7 +627,7 @@ function PaisAvanceChart({
   onSelect?: (pais: string) => void;
 }) {
   return (
-    <div className="bg-panel border border-border rounded-2xl p-4">
+    <div className="bg-panel border border-border rounded-2xl p-4 h-full">
       <h2 className="text-sm font-semibold font-display mb-4">Avance por país</h2>
       <div className="space-y-3">
         {rows.map((r) => (
@@ -472,7 +636,7 @@ function PaisAvanceChart({
             key={r.pais}
             onClick={() => onSelect?.(r.pais)}
             className={`w-full flex items-center gap-3 -mx-1.5 px-1.5 py-0.5 rounded-lg transition text-left ${
-              onSelect ? "cursor-pointer hover:bg-[#151C27]" : ""
+              onSelect ? "cursor-pointer hover:bg-[#151C27] active:scale-[0.98]" : ""
             }`}
           >
             <span className="w-[100px] shrink-0 text-xs text-muted truncate" title={r.pais}>
@@ -504,7 +668,7 @@ const ATENCION_COLOR: Record<AtencionReason, string> = {
 function AtencionSection({ items }: { items: AtencionItem[] }) {
   const shown = items.slice(0, 6);
   return (
-    <div className="bg-panel border border-border rounded-2xl p-4 mb-6">
+    <div className="bg-panel border border-border rounded-2xl p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold font-display">Requiere atención</h2>
         {items.length > 0 && (
@@ -521,7 +685,7 @@ function AtencionSection({ items }: { items: AtencionItem[] }) {
             <Link
               key={store.id}
               href={`/dashboard/tiendas/${store.id}`}
-              className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#151C27] active:bg-[#151C27] transition"
+              className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#151C27] active:bg-[#151C27] active:scale-[0.99] transition"
             >
               <span
                 className={`shrink-0 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full font-semibold ${ATENCION_COLOR[reason]}`}
@@ -541,5 +705,113 @@ function AtencionSection({ items }: { items: AtencionItem[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+function FilterSheet({
+  open,
+  onClose,
+  pais,
+  setPais,
+  region,
+  setRegion,
+  estado,
+  setEstado,
+  paises,
+  regiones,
+}: {
+  open: boolean;
+  onClose: () => void;
+  pais: string;
+  setPais: (v: string) => void;
+  region: string;
+  setRegion: (v: string) => void;
+  estado: string;
+  setEstado: (v: string) => void;
+  paises: string[];
+  regiones: string[];
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className="fixed inset-0 bg-black/60 z-40 md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="fixed bottom-0 left-0 right-0 z-50 bg-panel border-t border-border rounded-t-2xl p-5 pb-7 md:hidden"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 32, stiffness: 320 }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-sm font-semibold uppercase tracking-wide">Filtros</h3>
+              <button onClick={onClose} className="text-muted text-xl leading-none px-2 active:text-text">
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-muted mb-1.5">País</label>
+                <select
+                  value={pais}
+                  onChange={(e) => setPais(e.target.value)}
+                  className="w-full bg-panel2 border border-border rounded-lg px-3 py-3 text-sm"
+                >
+                  <option value="">Todos</option>
+                  {paises.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-muted mb-1.5">Región</label>
+                <select
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value)}
+                  className="w-full bg-panel2 border border-border rounded-lg px-3 py-3 text-sm"
+                >
+                  <option value="">Todas</option>
+                  {regiones.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-muted mb-1.5">Estado</label>
+                <select
+                  value={estado}
+                  onChange={(e) => setEstado(e.target.value)}
+                  className="w-full bg-panel2 border border-border rounded-lg px-3 py-3 text-sm"
+                >
+                  <option value="">Todos</option>
+                  {Object.entries(ESTADO_LABEL).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-full mt-5 bg-tealDim text-teal border border-teal/30 rounded-lg py-3 text-sm font-semibold active:bg-teal/20"
+            >
+              Aplicar filtros
+            </button>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
