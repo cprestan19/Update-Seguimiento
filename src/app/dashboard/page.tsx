@@ -120,7 +120,7 @@ export default function DashboardPage() {
   const [q, setQ] = useState("");
   const [pais, setPais] = useState("");
   const [region, setRegion] = useState("");
-  const [estado, setEstado] = useState("EN_PROGRESO");
+  const [estado, setEstado] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
 
