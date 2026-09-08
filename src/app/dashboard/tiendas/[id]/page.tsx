@@ -81,7 +81,6 @@ export default function StoreDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "ADMIN";
 
   const [store, setStore] = useState<StoreDetail | null>(null);
   const [tecnicos, setTecnicos] = useState<Person[]>([]);
@@ -116,7 +115,7 @@ export default function StoreDetailPage() {
   }, [store?.id]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!session) return;
     fetch("/api/users")
       .then((r) => r.json())
       .then((users: any[]) => {
@@ -124,7 +123,7 @@ export default function StoreDetailPage() {
         setAuditoresTI(users.filter((u) => u.personnelRole === "AUDITOR_TI"));
         setAuditoresInv(users.filter((u) => u.personnelRole === "AUDITOR_INVENTARIO"));
       });
-  }, [isAdmin]);
+  }, [session]);
 
   if (!store) return <div className="text-muted text-sm py-10 text-center">Cargando...</div>;
 
@@ -243,21 +242,21 @@ export default function StoreDetailPage() {
           label="Técnico"
           value={store.tecnico}
           options={tecnicos}
-          editable={isAdmin}
+          editable={!!session}
           onChange={(v) => assign("tecnicoId", v)}
         />
         <AssignField
           label="Auditor TI"
           value={store.auditorTI}
           options={auditoresTI}
-          editable={isAdmin}
+          editable={!!session}
           onChange={(v) => assign("auditorTIId", v)}
         />
         <AssignField
           label="Auditor inventario"
           value={store.auditorInv}
           options={auditoresInv}
-          editable={isAdmin}
+          editable={!!session}
           onChange={(v) => assign("auditorInvId", v)}
         />
         <div className="bg-panel border border-border rounded-lg px-2.5 py-2">

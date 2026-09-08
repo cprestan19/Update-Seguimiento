@@ -56,9 +56,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const reasignando = tecnicoId !== undefined || auditorTIId !== undefined || auditorInvId !== undefined;
   if (reasignando) {
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Solo un administrador puede reasignar personal" }, { status: 403 });
-    }
     if (tecnicoId !== undefined) data.tecnicoId = tecnicoId === "" ? null : tecnicoId;
     if (auditorTIId !== undefined) data.auditorTIId = auditorTIId === "" ? null : auditorTIId;
     if (auditorInvId !== undefined) data.auditorInvId = auditorInvId === "" ? null : auditorInvId;

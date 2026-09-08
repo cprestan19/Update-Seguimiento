@@ -4,12 +4,12 @@ import bcrypt from "bcryptjs";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+// Cualquier usuario autenticado puede leer el listado (lo necesitan los
+// selectores de tecnico/auditor al reasignar personal en una tienda).
+// Crear, editar y desactivar usuarios sigue siendo exclusivo de ADMIN.
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  if (session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Solo un administrador puede ver el equipo" }, { status: 403 });
-  }
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "asc" },
