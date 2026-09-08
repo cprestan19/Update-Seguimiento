@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     username: string;
     password: string;
     role: "ADMIN" | "USER";
-    personnelRole?: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | null;
+    personnelRole?: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
     pais?: string | null;
   };
 

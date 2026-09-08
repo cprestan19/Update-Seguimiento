@@ -6,7 +6,7 @@ declare module "next-auth" {
       id: string;
       username: string;
       role: "ADMIN" | "USER";
-      personnelRole: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | null;
+      personnelRole: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
     } & DefaultSession["user"];
   }
 }
@@ -16,6 +16,6 @@ declare module "next-auth/jwt" {
     id: string;
     username: string;
     role: "ADMIN" | "USER";
-    personnelRole: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | null;
+    personnelRole: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
   }
 }

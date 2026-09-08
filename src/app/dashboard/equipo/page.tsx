@@ -9,7 +9,7 @@ type PersonRow = {
   name: string;
   username: string;
   role: "ADMIN" | "USER";
-  personnelRole: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | null;
+  personnelRole: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
   pais: string | null;
   active: boolean;
   tiendasAsignadas: number;
@@ -20,6 +20,7 @@ const ROLE_LABEL: Record<string, string> = {
   AUDITOR_TI: "Auditor TI",
   AUDITOR_INVENTARIO: "Auditor Inventario",
   COORDINADOR: "Coordinador",
+  INFRAESTRUCTURA: "Infraestructura",
 };
 
 const EMPTY_FORM = {
@@ -203,6 +204,7 @@ export default function EquipoPage() {
               <option value="AUDITOR_TI">Auditor TI</option>
               <option value="AUDITOR_INVENTARIO">Auditor Inventario</option>
               <option value="COORDINADOR">Coordinador</option>
+              <option value="INFRAESTRUCTURA">Infraestructura</option>
             </select>
           </Field>
           <Field label="País (opcional)">

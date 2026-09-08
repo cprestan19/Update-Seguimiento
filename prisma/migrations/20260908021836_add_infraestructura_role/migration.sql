@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "PersonnelRole" ADD VALUE 'INFRAESTRUCTURA';

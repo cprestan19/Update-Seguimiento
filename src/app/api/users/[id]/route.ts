@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     username?: string;
     password?: string;
     role?: "ADMIN" | "USER";
-    personnelRole?: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | null;
+    personnelRole?: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
     pais?: string | null;
     active?: boolean;
   };

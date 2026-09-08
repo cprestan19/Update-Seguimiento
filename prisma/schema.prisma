@@ -24,6 +24,7 @@ enum PersonnelRole {
   AUDITOR_TI
   AUDITOR_INVENTARIO
   COORDINADOR
+  INFRAESTRUCTURA
 }
 
 model User {
