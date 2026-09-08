@@ -591,6 +591,8 @@ function ProgressCircle({
   progreso,
   pendientes,
   incidencias,
+  hovered,
+  onHoverChange,
 }: {
   pct: number;
   total: number;
@@ -598,6 +600,8 @@ function ProgressCircle({
   progreso: number;
   pendientes: number;
   incidencias: number;
+  hovered: string | null;
+  onHoverChange: (key: string | null) => void;
 }) {
   const size = 152;
   const stroke = 12;
@@ -633,6 +637,18 @@ function ProgressCircle({
 
   const depsKey = `${total}-${completadas}-${progreso}-${pendientes}-${incidencias}`;
 
+  function pctOf(value: number) {
+    return total > 0 ? Math.round((value / total) * 100) : 0;
+  }
+
+  const segments = [
+    { key: "COMPLETADA", label: "Completadas", color: ESTADO_COLOR.COMPLETADA, value: completadas, fraction: fCompletada, start: startCompletada, dash: dashCompletada },
+    { key: "EN_PROGRESO", label: "En progreso", color: ESTADO_COLOR.EN_PROGRESO, value: progreso, fraction: fProgreso, start: startProgreso, dash: dashProgreso },
+    { key: "PENDIENTE", label: "Pendientes", color: ESTADO_COLOR.PENDIENTE, value: pendientes, fraction: fPendiente, start: startPendiente, dash: dashPendiente },
+    { key: "CON_INCIDENCIA", label: "Con incidencia", color: ESTADO_COLOR.CON_INCIDENCIA, value: incidencias, fraction: fIncidencia, start: startIncidencia, dash: dashIncidencia },
+  ];
+  const hoveredSeg = segments.find((s) => s.key === hovered) || null;
+
   useEffect(() => {
     if (reduceMotion) {
       mvPct.set(pct);
@@ -657,48 +673,56 @@ function ProgressCircle({
     <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={radius} stroke="#161C27" strokeWidth={stroke} fill="none" />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={ESTADO_COLOR.COMPLETADA}
-          strokeWidth={stroke}
-          fill="none"
-          strokeLinecap="round"
-          style={{ strokeDasharray: dashCompletada, strokeDashoffset: -startCompletada * circumference }}
-        />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={ESTADO_COLOR.EN_PROGRESO}
-          strokeWidth={stroke}
-          fill="none"
-          strokeLinecap="round"
-          style={{ strokeDasharray: dashProgreso, strokeDashoffset: -startProgreso * circumference }}
-        />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={ESTADO_COLOR.PENDIENTE}
-          strokeWidth={stroke}
-          fill="none"
-          strokeLinecap="round"
-          style={{ strokeDasharray: dashPendiente, strokeDashoffset: -startPendiente * circumference }}
-        />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={ESTADO_COLOR.CON_INCIDENCIA}
-          strokeWidth={stroke}
-          fill="none"
-          strokeLinecap="round"
-          style={{ strokeDasharray: dashIncidencia, strokeDashoffset: -startIncidencia * circumference }}
-        />
+        {segments.map((seg) => (
+          <motion.circle
+            key={seg.key}
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={seg.color}
+            strokeWidth={stroke}
+            fill="none"
+            strokeLinecap="round"
+            opacity={hovered && hovered !== seg.key ? 0.35 : 1}
+            style={{ strokeDasharray: seg.dash, strokeDashoffset: -seg.start * circumference, transition: "opacity 0.15s" }}
+          />
+        ))}
+        {/* Aros invisibles más gruesos, solo para facilitar el hover/tap */}
+        {segments.map((seg) => {
+          if (seg.fraction <= 0) return null;
+          const hitLen = Math.max(0, seg.fraction * circumference - gap);
+          return (
+            <circle
+              key={`hit-${seg.key}`}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke="transparent"
+              strokeWidth={stroke + 16}
+              fill="none"
+              strokeDasharray={`${hitLen} ${circumference}`}
+              strokeDashoffset={-seg.start * circumference}
+              style={{ cursor: "pointer", pointerEvents: "stroke" }}
+              onMouseEnter={() => onHoverChange(seg.key)}
+              onMouseLeave={() => onHoverChange(null)}
+              onClick={() => onHoverChange(hovered === seg.key ? null : seg.key)}
+            />
+          );
+        })}
       </svg>
-      <div className="absolute font-display text-3xl font-bold">{display}%</div>
+      <div className="absolute flex flex-col items-center pointer-events-none">
+        {hoveredSeg ? (
+          <>
+            <span className="font-display text-2xl font-bold leading-none">{hoveredSeg.value}</span>
+            <span className="text-[10px] text-muted uppercase tracking-wide mt-1 text-center px-2">
+              {hoveredSeg.label}
+            </span>
+            <span className="text-[11px] font-mono text-text mt-0.5">{pctOf(hoveredSeg.value)}%</span>
+          </>
+        ) : (
+          <span className="font-display text-3xl font-bold">{display}%</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -712,8 +736,14 @@ function AvanceMigracionCard({
   selected: string;
   onSelect: (estado: string) => void;
 }) {
+  const [hovered, setHovered] = useState<string | null>(null);
+
   function toggle(key: string) {
     onSelect(selected === key ? "" : key);
+  }
+
+  function pct(value: number) {
+    return data.total > 0 ? Math.round((value / data.total) * 100) : 0;
   }
 
   return (
@@ -726,6 +756,8 @@ function AvanceMigracionCard({
         progreso={data.progreso}
         pendientes={data.pendientes}
         incidencias={data.incidencias}
+        hovered={hovered}
+        onHoverChange={setHovered}
       />
       <div className="mt-3 text-sm text-muted">
         <span className="font-mono text-text font-semibold">{data.completadas}</span> / {data.total} tiendas
@@ -735,29 +767,45 @@ function AvanceMigracionCard({
           color={ESTADO_COLOR.COMPLETADA}
           label="Completadas"
           value={data.completadas}
+          pct={pct(data.completadas)}
           active={selected === "COMPLETADA"}
+          hovered={hovered === "COMPLETADA"}
           onClick={() => toggle("COMPLETADA")}
+          onHover={() => setHovered("COMPLETADA")}
+          onHoverEnd={() => setHovered(null)}
         />
         <LegendItem
           color={ESTADO_COLOR.EN_PROGRESO}
           label="En progreso"
           value={data.progreso}
+          pct={pct(data.progreso)}
           active={selected === "EN_PROGRESO"}
+          hovered={hovered === "EN_PROGRESO"}
           onClick={() => toggle("EN_PROGRESO")}
+          onHover={() => setHovered("EN_PROGRESO")}
+          onHoverEnd={() => setHovered(null)}
         />
         <LegendItem
           color={ESTADO_COLOR.PENDIENTE}
           label="Pendientes"
           value={data.pendientes}
+          pct={pct(data.pendientes)}
           active={selected === "PENDIENTE"}
+          hovered={hovered === "PENDIENTE"}
           onClick={() => toggle("PENDIENTE")}
+          onHover={() => setHovered("PENDIENTE")}
+          onHoverEnd={() => setHovered(null)}
         />
         <LegendItem
           color={ESTADO_COLOR.CON_INCIDENCIA}
           label="Con incidencia"
           value={data.incidencias}
+          pct={pct(data.incidencias)}
           active={selected === "CON_INCIDENCIA"}
+          hovered={hovered === "CON_INCIDENCIA"}
           onClick={() => toggle("CON_INCIDENCIA")}
+          onHover={() => setHovered("CON_INCIDENCIA")}
+          onHoverEnd={() => setHovered(null)}
         />
       </div>
     </div>
@@ -768,26 +816,37 @@ function LegendItem({
   color,
   label,
   value,
+  pct,
   active,
+  hovered,
   onClick,
+  onHover,
+  onHoverEnd,
 }: {
   color: string;
   label: string;
   value: number;
+  pct: number;
   active?: boolean;
+  hovered?: boolean;
   onClick: () => void;
+  onHover?: () => void;
+  onHoverEnd?: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      onMouseEnter={onHover}
+      onMouseLeave={onHoverEnd}
       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition text-left hover:bg-[#151C27] active:scale-[0.97] ${
-        active ? "bg-[#151C27]" : ""
+        active || hovered ? "bg-[#151C27]" : ""
       }`}
     >
       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
       <span className="text-xs text-muted flex-1 truncate">{label}</span>
       <span className="text-xs font-mono text-text">{value}</span>
+      <span className="text-[10px] font-mono text-muted w-8 text-right">{pct}%</span>
     </button>
   );
 }
