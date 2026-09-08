@@ -36,6 +36,7 @@ model User {
   personnelRole PersonnelRole?
   pais          String?
   active        Boolean        @default(true)
+  lastActiveAt  DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 

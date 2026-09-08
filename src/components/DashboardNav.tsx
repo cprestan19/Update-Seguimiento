@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -12,6 +13,15 @@ export default function DashboardNav({
   role: "ADMIN" | "USER";
 }) {
   const pathname = usePathname();
+
+  useEffect(() => {
+    function ping() {
+      fetch("/api/users/heartbeat", { method: "POST" }).catch(() => {});
+    }
+    ping();
+    const interval = setInterval(ping, 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const linkClass = (href: string) =>
     `text-sm px-3 py-1.5 rounded-lg transition ${

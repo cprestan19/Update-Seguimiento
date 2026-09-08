@@ -12,6 +12,7 @@ type PersonRow = {
   personnelRole: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
   pais: string | null;
   active: boolean;
+  online: boolean;
   tiendasAsignadas: number;
 };
 
@@ -65,6 +66,12 @@ export default function EquipoPage() {
     }
     if (status === "authenticated") load();
   }, [status, session, load, router]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const interval = setInterval(load, 30_000);
+    return () => clearInterval(interval);
+  }, [status, load]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -151,7 +158,13 @@ export default function EquipoPage() {
 
   return (
     <div>
-      <h1 className="font-display text-lg mb-1">Equipo de migración</h1>
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+        <h1 className="font-display text-lg">Equipo de migración</h1>
+        <span className="text-xs text-muted flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-teal" />
+          {users.filter((u) => u.online).length} conectado{users.filter((u) => u.online).length === 1 ? "" : "s"} ahora
+        </span>
+      </div>
       <p className="text-xs text-muted mb-6">
         Aquí das de alta a técnicos, auditores TI y auditores de inventario, con su usuario y contraseña de acceso.
       </p>
@@ -362,7 +375,12 @@ export default function EquipoPage() {
                   </span>
                 )}
               </div>
-              <div className="text-sm font-medium">{u.name}</div>
+              <div className="text-sm font-medium flex items-center gap-1.5">
+                {u.online && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal shrink-0" title="Conectado ahora" />
+                )}
+                {u.name}
+              </div>
               <div className="text-[11px] text-muted">@{u.username}</div>
               <div className="text-[11px] text-muted mt-1">
                 {u.pais || "Sin país fijo"} · {u.tiendasAsignadas} tiendas asignadas

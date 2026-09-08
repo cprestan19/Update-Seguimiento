@@ -18,14 +18,19 @@ export async function GET() {
       personnelRole: true,
       pais: true,
       active: true,
+      lastActiveAt: true,
       _count: {
         select: { storesAsTecnico: true, storesAsAuditorTI: true, storesAsAuditorInv: true },
       },
     },
   });
 
+  const ONLINE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutos (heartbeat cada 60s)
+  const now = Date.now();
+
   const data = users.map((u) => ({
     ...u,
+    online: u.lastActiveAt ? now - u.lastActiveAt.getTime() < ONLINE_THRESHOLD_MS : false,
     tiendasAsignadas:
       u._count.storesAsTecnico + u._count.storesAsAuditorTI + u._count.storesAsAuditorInv,
     _count: undefined,
