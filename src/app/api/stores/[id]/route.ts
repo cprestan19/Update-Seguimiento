@@ -31,12 +31,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const body = await req.json();
-  const { tecnicoId, auditorTIId, auditorInvId, inventarioInicial, inventarioFinal } = body as {
+  const {
+    tecnicoId,
+    auditorTIId,
+    auditorInvId,
+    inventarioInicial,
+    inventarioFinal,
+    costoInicial,
+    costoFinal,
+  } = body as {
     tecnicoId?: string | null;
     auditorTIId?: string | null;
     auditorInvId?: string | null;
     inventarioInicial?: number | string | null;
     inventarioFinal?: number | string | null;
+    costoInicial?: number | string | null;
+    costoFinal?: number | string | null;
   };
 
   const data: Record<string, unknown> = {};
@@ -68,6 +78,21 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (inventarioFinal !== undefined) {
     data.inventarioFinal = parseInventario(inventarioFinal);
     auditDetalle.inventarioFinal = data.inventarioFinal;
+  }
+
+  function parseCosto(v: number | string | null | undefined) {
+    if (v === "" || v === null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+  }
+
+  if (costoInicial !== undefined) {
+    data.costoInicial = parseCosto(costoInicial);
+    auditDetalle.costoInicial = data.costoInicial;
+  }
+  if (costoFinal !== undefined) {
+    data.costoFinal = parseCosto(costoFinal);
+    auditDetalle.costoFinal = data.costoFinal;
   }
 
   const store = await prisma.store.update({ where: { id: params.id }, data });

@@ -84,6 +84,8 @@ model Store {
 
   inventarioInicial Int?
   inventarioFinal   Int?
+  costoInicial      Float?
+  costoFinal        Float?
 
   checklist         StoreChecklistItem[]
   incidents         Incident[]

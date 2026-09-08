@@ -37,6 +37,8 @@ type StoreDetail = {
   duracionRealMin: number | null;
   inventarioInicial: number | null;
   inventarioFinal: number | null;
+  costoInicial: number | null;
+  costoFinal: number | null;
   checklist: ChecklistRow[];
   incidents: Incident[];
 };
@@ -62,6 +64,8 @@ export default function StoreDetailPage() {
   const [newIncidentSev, setNewIncidentSev] = useState("MEDIA");
   const [inventarioInicial, setInventarioInicial] = useState("");
   const [inventarioFinal, setInventarioFinal] = useState("");
+  const [costoInicial, setCostoInicial] = useState("");
+  const [costoFinal, setCostoFinal] = useState("");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/stores/${id}`);
@@ -76,6 +80,8 @@ export default function StoreDetailPage() {
     if (!store) return;
     setInventarioInicial(store.inventarioInicial != null ? String(store.inventarioInicial) : "");
     setInventarioFinal(store.inventarioFinal != null ? String(store.inventarioFinal) : "");
+    setCostoInicial(store.costoInicial != null ? String(store.costoInicial) : "");
+    setCostoFinal(store.costoFinal != null ? String(store.costoFinal) : "");
     // Solo re-sincroniza al cambiar de tienda, para no pisar lo que el usuario está escribiendo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store?.id]);
@@ -135,7 +141,10 @@ export default function StoreDetailPage() {
     load();
   }
 
-  async function saveInventario(field: "inventarioInicial" | "inventarioFinal", value: string) {
+  async function saveCampoTienda(
+    field: "inventarioInicial" | "inventarioFinal" | "costoInicial" | "costoFinal",
+    value: string
+  ) {
     await fetch(`/api/stores/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -151,6 +160,13 @@ export default function StoreDetailPage() {
     inventarioNum.inicial != null && inventarioNum.final != null
       ? inventarioNum.inicial === inventarioNum.final
       : null;
+
+  const costoNum = {
+    inicial: costoInicial === "" ? null : Number(costoInicial),
+    final: costoFinal === "" ? null : Number(costoFinal),
+  };
+  const costoCoincide =
+    costoNum.inicial != null && costoNum.final != null ? costoNum.inicial === costoNum.final : null;
 
   return (
     <div className="max-w-2xl">
@@ -213,7 +229,7 @@ export default function StoreDetailPage() {
               inputMode="numeric"
               value={inventarioInicial}
               onChange={(e) => setInventarioInicial(e.target.value)}
-              onBlur={(e) => saveInventario("inventarioInicial", e.target.value)}
+              onBlur={(e) => saveCampoTienda("inventarioInicial", e.target.value)}
               placeholder="Sin registrar"
               className="w-full bg-transparent text-sm font-mono focus:outline-none placeholder:text-muted2 placeholder:italic placeholder:text-xs"
             />
@@ -225,7 +241,7 @@ export default function StoreDetailPage() {
               inputMode="numeric"
               value={inventarioFinal}
               onChange={(e) => setInventarioFinal(e.target.value)}
-              onBlur={(e) => saveInventario("inventarioFinal", e.target.value)}
+              onBlur={(e) => saveCampoTienda("inventarioFinal", e.target.value)}
               placeholder="Sin registrar"
               className="w-full bg-transparent text-sm font-mono focus:outline-none placeholder:text-muted2 placeholder:italic placeholder:text-xs"
             />
@@ -236,6 +252,51 @@ export default function StoreDetailPage() {
             {inventarioCoincide
               ? "✓ Coincide"
               : `⚠ Diferencia de ${Math.abs((inventarioNum.inicial as number) - (inventarioNum.final as number))} unidades`}
+          </p>
+        )}
+      </div>
+
+      <div className="mb-6">
+        <h3 className="text-xs uppercase tracking-wide text-muted mb-2.5">Costo</h3>
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="bg-panel border border-border rounded-lg px-2.5 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-muted mb-1">Inicial</div>
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-muted2">$</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={costoInicial}
+                onChange={(e) => setCostoInicial(e.target.value)}
+                onBlur={(e) => saveCampoTienda("costoInicial", e.target.value)}
+                placeholder="Sin registrar"
+                className="w-full bg-transparent text-sm font-mono focus:outline-none placeholder:text-muted2 placeholder:italic placeholder:text-xs"
+              />
+            </div>
+          </div>
+          <div className="bg-panel border border-border rounded-lg px-2.5 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-muted mb-1">Final</div>
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-muted2">$</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={costoFinal}
+                onChange={(e) => setCostoFinal(e.target.value)}
+                onBlur={(e) => saveCampoTienda("costoFinal", e.target.value)}
+                placeholder="Sin registrar"
+                className="w-full bg-transparent text-sm font-mono focus:outline-none placeholder:text-muted2 placeholder:italic placeholder:text-xs"
+              />
+            </div>
+          </div>
+        </div>
+        {costoCoincide !== null && (
+          <p className={`text-xs mt-2 ${costoCoincide ? "text-teal" : "text-amber"}`}>
+            {costoCoincide
+              ? "✓ Coincide"
+              : `⚠ Diferencia de $${Math.abs((costoNum.inicial as number) - (costoNum.final as number)).toFixed(2)}`}
           </p>
         )}
       </div>
