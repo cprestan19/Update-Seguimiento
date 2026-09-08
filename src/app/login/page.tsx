@@ -34,11 +34,11 @@ export default function LoginPage() {
       <div className="w-full max-w-sm bg-panel border border-border rounded-2xl p-8">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-teal to-blue flex items-center justify-center font-bold text-[#04110F] text-sm font-display">
-            P2
+            TI
           </div>
           <div>
-            <h1 className="font-display text-base leading-tight">Centro de Control</h1>
-            <p className="text-xs text-muted">Migración RPro v9 → Prism 2.2</p>
+            <h1 className="font-display text-base leading-tight">ToolsIT Control Center</h1>
+            <p className="text-xs text-muted">Panel de control operativo</p>
           </div>
         </div>
 

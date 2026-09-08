@@ -37,7 +37,7 @@ type ShareInfo = { name: string; username: string; password: string };
 
 function buildWhatsAppLink(info: ShareInfo) {
   const url = typeof window !== "undefined" ? `${window.location.origin}/login` : "";
-  const mensaje = `Hola ${info.name}, estos son tus accesos al Centro de Control de Migración:\n\nUsuario: ${info.username}\nContraseña: ${info.password}\n\nIngresa aquí: ${url}`;
+  const mensaje = `Hola ${info.name}, estos son tus accesos a ToolsIT Control Center:\n\nUsuario: ${info.username}\nContraseña: ${info.password}\n\nIngresa aquí: ${url}`;
   return `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
 }
 

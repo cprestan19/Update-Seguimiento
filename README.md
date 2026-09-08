@@ -1,8 +1,11 @@
-# Centro de Control · Migración RPro v9 → Prism 2.2
+# ToolsIT Control Center
 
-Aplicación de control de la implementación de migración de Retail Pro v9 a
-Prism 2.2 en las 52 tiendas de ASW Group (Panamá, Zona Libre, Aeropuerto,
-Uruguay, Curazao, Aruba, St. Maarten, Belice, El Salvador y Honduras).
+Panel de control operativo para el seguimiento de proyectos con múltiples
+ubicaciones (checklist por etapas, asignación de personal, incidencias,
+inventario/costo y estado en tiempo real). Actualmente en uso por ASW Group
+para la migración de Retail Pro v9 a Prism 2.2 en 52 tiendas (Panamá, Zona
+Libre, Aeropuerto, Uruguay, Curazao, Aruba, St. Maarten, Belice, El Salvador
+y Honduras), pero está pensado para reutilizarse en otros rollouts.
 
 Incluye:
 

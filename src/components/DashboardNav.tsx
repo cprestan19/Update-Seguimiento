@@ -33,11 +33,11 @@ export default function DashboardNav({
       <div className="max-w-[1400px] mx-auto px-4 md:px-7 py-3.5 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal to-blue flex items-center justify-center font-bold text-[#04110F] text-xs font-display">
-            P2
+            TI
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-semibold font-display">Control de Migración</div>
-            <div className="text-[11px] text-muted">RPro v9 → Prism 2.2</div>
+            <div className="text-sm font-semibold font-display">ToolsIT Control Center</div>
+            <div className="text-[11px] text-muted">Panel de control operativo</div>
           </div>
         </div>
 

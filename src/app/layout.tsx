@@ -3,8 +3,8 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
-  title: "Centro de Control · Migración RPro v9 → Prism 2.2",
-  description: "Control de implementación de migración - ASW Group",
+  title: "ToolsIT Control Center",
+  description: "Panel de control operativo para seguimiento de proyectos - ASW Group",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
