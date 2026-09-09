@@ -12,20 +12,23 @@ const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
 const COLOR = {
   text: rgb(0.06, 0.09, 0.13),
-  muted: rgb(0.42, 0.46, 0.52),
-  border: rgb(0.85, 0.86, 0.88),
-  panel: rgb(0.96, 0.97, 0.97),
-  teal: rgb(0.176, 0.831, 0.749), // COMPLETADA
-  blue: rgb(0.231, 0.62, 1), // EN_PROGRESO
-  gray: rgb(0.306, 0.353, 0.42), // PENDIENTE
-  red: rgb(0.949, 0.286, 0.361), // CON_INCIDENCIA / CRITICA
-  orange: rgb(0.961, 0.651, 0.137), // ALTA
+  muted: rgb(0.4, 0.44, 0.52),
+  border: rgb(0.8, 0.82, 0.87),
+  panel: rgb(0.94, 0.96, 0.99),
+  white: rgb(1, 1, 1),
+  primary: rgb(0.098, 0.278, 0.882), // marca / encabezado
+  primaryDark: rgb(0.055, 0.153, 0.51),
+  teal: rgb(0.02, 0.75, 0.62), // COMPLETADA
+  blue: rgb(0.098, 0.51, 0.98), // EN_PROGRESO
+  violet: rgb(0.545, 0.29, 0.965), // PENDIENTE
+  red: rgb(0.937, 0.145, 0.302), // CON_INCIDENCIA / CRITICA
+  orange: rgb(0.98, 0.573, 0.02), // ALTA
 };
 
 const ESTADO_COLOR: Record<string, ReturnType<typeof rgb>> = {
   Completada: COLOR.teal,
   "En progreso": COLOR.blue,
-  Pendiente: COLOR.gray,
+  Pendiente: COLOR.violet,
   "Con incidencia": COLOR.red,
 };
 
@@ -33,7 +36,7 @@ const SEVERIDAD_COLOR: Record<string, ReturnType<typeof rgb>> = {
   CRITICA: COLOR.red,
   ALTA: COLOR.orange,
   MEDIA: COLOR.blue,
-  BAJA: COLOR.gray,
+  BAJA: COLOR.violet,
 };
 
 const SEVERIDAD_LABEL: Record<string, string> = {
@@ -150,14 +153,15 @@ export async function GET() {
   }
 
   function sectionTitle(t: string) {
-    ensureSpace(30);
-    text(t, MARGIN, y, { size: 13, f: bold });
-    y -= 8;
+    ensureSpace(32);
+    page.drawRectangle({ x: MARGIN, y: y - 10, width: 4, height: 13, color: COLOR.primary });
+    text(t, MARGIN + 10, y, { size: 13, f: bold, color: COLOR.primaryDark });
+    y -= 10;
     page.drawLine({
       start: { x: MARGIN, y },
       end: { x: PAGE_WIDTH - MARGIN, y },
-      thickness: 0.75,
-      color: COLOR.border,
+      thickness: 1.25,
+      color: COLOR.primary,
     });
     y -= 16;
   }
@@ -171,19 +175,24 @@ export async function GET() {
   }
 
   // ---- Encabezado ----
-  text("ToolsIT Control Center", MARGIN, y, { size: 18, f: bold });
-  y -= 20;
-  text("Resumen ejecutivo - Migracion RPro v9 -> Prism 2.2", MARGIN, y, { size: 12, f: bold, color: COLOR.muted });
-  y -= 16;
-  text(`Generado: ${now.toLocaleString("es-PA")}`, MARGIN, y, { size: 9, color: COLOR.muted });
-  y -= 24;
+  const HEADER_H = 78;
+  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - HEADER_H, width: PAGE_WIDTH, height: HEADER_H, color: COLOR.primary });
+  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - HEADER_H - 3, width: PAGE_WIDTH, height: 3, color: COLOR.teal });
+  text("ToolsIT Control Center", MARGIN, PAGE_HEIGHT - 30, { size: 19, f: bold, color: COLOR.white });
+  text("Resumen ejecutivo · Migración RPro v9 → Prism 2.4", MARGIN, PAGE_HEIGHT - 50, {
+    size: 12,
+    f: bold,
+    color: rgb(0.85, 0.9, 1),
+  });
+  text(`Generado: ${now.toLocaleString("es-PA")}`, MARGIN, PAGE_HEIGHT - 65, { size: 9, color: rgb(0.85, 0.9, 1) });
+  y = PAGE_HEIGHT - HEADER_H - 24;
 
   // ---- KPIs ----
   const kpis: { label: string; value: string; color: ReturnType<typeof rgb> }[] = [
-    { label: "Total tiendas", value: String(total), color: COLOR.text },
+    { label: "Total tiendas", value: String(total), color: COLOR.primary },
     { label: "Completadas", value: String(completadas), color: COLOR.teal },
     { label: "En progreso", value: String(enProgreso), color: COLOR.blue },
-    { label: "Pendientes", value: String(pendientes), color: COLOR.gray },
+    { label: "Pendientes", value: String(pendientes), color: COLOR.violet },
     { label: "Con incidencia", value: String(conIncidencia), color: COLOR.red },
   ];
   const cardGap = 10;
@@ -193,8 +202,9 @@ export async function GET() {
   kpis.forEach((k, i) => {
     const x = MARGIN + i * (cardW + cardGap);
     page.drawRectangle({ x, y: y - cardH, width: cardW, height: cardH, color: COLOR.panel, borderColor: COLOR.border, borderWidth: 0.75 });
-    text(k.value, x + 10, y - 24, { size: 20, f: bold, color: k.color });
-    text(k.label, x + 10, y - 40, { size: 8, color: COLOR.muted });
+    page.drawRectangle({ x, y: y - 4, width: cardW, height: 4, color: k.color });
+    text(k.value, x + 10, y - 26, { size: 21, f: bold, color: k.color });
+    text(k.label, x + 10, y - 42, { size: 8, color: COLOR.muted });
   });
   y -= cardH + 24;
 
@@ -283,7 +293,8 @@ export async function GET() {
   sevOrder.forEach((sev, i) => {
     const x = MARGIN + i * (sevW + sevGap);
     page.drawRectangle({ x, y: y - 40, width: sevW, height: 40, color: COLOR.panel, borderColor: COLOR.border, borderWidth: 0.75 });
-    page.drawRectangle({ x: x + 10, y: y - 20, width: 8, height: 8, color: SEVERIDAD_COLOR[sev] });
+    page.drawRectangle({ x, y: y - 40, width: 4, height: 40, color: SEVERIDAD_COLOR[sev] });
+    page.drawRectangle({ x: x + 14, y: y - 20, width: 8, height: 8, color: SEVERIDAD_COLOR[sev] });
     text(String(severidadCounts[sev] || 0), x + sevW - 24, y - 24, { size: 14, f: bold });
     text(SEVERIDAD_LABEL[sev], x + 24, y - 17, { size: 8, color: COLOR.muted });
   });
