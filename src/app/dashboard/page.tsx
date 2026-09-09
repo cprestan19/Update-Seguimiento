@@ -383,6 +383,12 @@ export default function DashboardPage() {
           >
             PDF
           </a>
+          <a
+            href="/api/reports/executive"
+            className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-blue hover:border-blue/40 transition"
+          >
+            Resumen ejecutivo
+          </a>
         </div>
 
         <div className="md:hidden flex items-center justify-between mb-4">
@@ -395,6 +401,9 @@ export default function DashboardPage() {
             </a>
             <a href="/api/reports/pdf" className="text-xs font-semibold text-muted active:text-red">
               PDF
+            </a>
+            <a href="/api/reports/executive" className="text-xs font-semibold text-muted active:text-blue">
+              Ejecutivo
             </a>
           </div>
         </div>

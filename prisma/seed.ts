@@ -2,7 +2,7 @@
  * Seed de datos iniciales:
  *  - Catalogo de checklist (categorias + items), tomado del plan de migracion.
  *  - Usuario administrador por defecto.
- *  - Las 52 tiendas reales extraidas de plan_de_migracion.xlsx.
+ *  - Las 49 tiendas reales extraidas de plan_de_migracion.xlsx.
  *
  * Ejecutar con: npx prisma db seed   (o) npm run prisma:seed
  */
@@ -29,12 +29,9 @@ const STORES_SEED: { pais: string; region: string; tienda: string; horario: stri
   { pais: "Aeropuerto", region: "Panama Aeropuerto", tienda: "Bodega Aeropuerto Carga CK", horario: "5:00PM" },
   { pais: "Aeropuerto", region: "Panama Aeropuerto", tienda: "Bodega Aeropuerto  Plataforma CK", horario: "1:00AM" },
   { pais: "Uruguay", region: "CK Uruguay", tienda: "CK Carreta", horario: "2:00AM" },
-  { pais: "Uruguay", region: "Uruguay", tienda: "Bodega", horario: "4:00AM" },
   { pais: "Uruguay", region: "CK Uruguay", tienda: "CK Punta del Este", horario: "2:00AM" },
   { pais: "Uruguay", region: "Th Uruguay", tienda: "TH Carreta", horario: "2:00AM" },
   { pais: "Uruguay", region: "Th Uruguay", tienda: "TH Punta del Este", horario: "3:00AM" },
-  { pais: "Uruguay", region: "KL Uruguay", tienda: "KL Carreta", horario: "3:00AM" },
-  { pais: "Uruguay", region: "KL Uruguay", tienda: "KL Punta del Este", horario: "3:00AM" },
   { pais: "Panama", region: "CK Panama", tienda: "CK Metro Mall", horario: "6:00AM" },
   { pais: "Panama", region: "CK Panama", tienda: "CK Multicentro", horario: "7:00AM" },
   { pais: "Panama", region: "CK Panama", tienda: "CK Albrook Mall Jeans", horario: "6:00AM" },
@@ -160,7 +157,7 @@ async function main() {
   });
   console.log(`   -> usuario: admin / contraseña: ${defaultPassword}  (cámbiala apenas ingreses)`);
 
-  console.log("Cargando las 52 tiendas del plan de migración...");
+  console.log("Cargando las 49 tiendas del plan de migración...");
   for (const s of STORES_SEED) {
     const existing = await prisma.store.findFirst({
       where: { tienda: s.tienda, pais: s.pais, horario: s.horario },

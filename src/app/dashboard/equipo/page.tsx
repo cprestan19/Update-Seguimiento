@@ -290,13 +290,13 @@ export default function EquipoPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="bg-panel border border-border rounded-2xl divide-y divide-border overflow-hidden">
         {users.map((u) =>
           editingId === u.id ? (
             <form
               key={u.id}
               onSubmit={submitEdit}
-              className="bg-panel2 border border-blue/40 rounded-xl p-3.5 md:col-span-2 lg:col-span-3"
+              className="bg-panel2 border-y border-blue/40 -my-px p-3.5"
             >
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 mb-2.5">
                 <Field label="Nombre completo">
@@ -373,22 +373,15 @@ export default function EquipoPage() {
               </div>
             </form>
           ) : (
-            <div key={u.id} className="bg-panel2 border border-border rounded-xl p-3.5 relative">
-              <div className="absolute top-2.5 right-3 flex items-center gap-2.5 text-xs">
-                <button onClick={() => startEdit(u)} className="text-muted hover:text-blue" title="Editar">
-                  Editar
-                </button>
-                {u.active ? (
-                  <button onClick={() => deactivate(u.id)} className="text-muted hover:text-red" title="Eliminar">
-                    Eliminar
-                  </button>
-                ) : (
-                  <button onClick={() => reactivate(u.id)} className="text-muted hover:text-teal" title="Reactivar">
-                    Reactivar
-                  </button>
+            <div key={u.id} className="flex items-center gap-3 px-4 py-3 flex-wrap">
+              <div className="flex items-center gap-1.5 min-w-[160px]">
+                {u.online && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal shrink-0" title="Conectado ahora" />
                 )}
+                <span className="text-sm font-medium">{u.name}</span>
               </div>
-              <div className="flex items-center gap-1.5 mb-1.5 flex-wrap pr-24">
+              <span className="text-[11px] text-muted min-w-[100px]">@{u.username}</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {u.personnelRole && (
                   <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-blueDim text-blue">
                     {ROLE_LABEL[u.personnelRole]}
@@ -403,15 +396,22 @@ export default function EquipoPage() {
                   </span>
                 )}
               </div>
-              <div className="text-sm font-medium flex items-center gap-1.5">
-                {u.online && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal shrink-0" title="Conectado ahora" />
-                )}
-                {u.name}
-              </div>
-              <div className="text-[11px] text-muted">@{u.username}</div>
-              <div className="text-[11px] text-muted mt-1">
+              <span className="text-[11px] text-muted">
                 {u.pais || "Sin país fijo"} · {u.tiendasAsignadas} tiendas asignadas
+              </span>
+              <div className="flex items-center gap-2.5 text-xs ml-auto">
+                <button onClick={() => startEdit(u)} className="text-muted hover:text-blue" title="Editar">
+                  Editar
+                </button>
+                {u.active ? (
+                  <button onClick={() => deactivate(u.id)} className="text-muted hover:text-red" title="Eliminar">
+                    Eliminar
+                  </button>
+                ) : (
+                  <button onClick={() => reactivate(u.id)} className="text-muted hover:text-teal" title="Reactivar">
+                    Reactivar
+                  </button>
+                )}
               </div>
             </div>
           )

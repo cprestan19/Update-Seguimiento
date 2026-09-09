@@ -5,6 +5,7 @@ export type ReportRow = {
   region: string;
   tienda: string;
   horario: string;
+  minutosDia: number;
   estado: string;
   tecnico: string;
   auditorTI: string;
@@ -45,6 +46,7 @@ export async function getReportRows(): Promise<ReportRow[]> {
       region: s.region,
       tienda: s.tienda,
       horario: s.horario,
+      minutosDia: s.minutosDia,
       estado: ESTADO_LABEL[s.estado] || s.estado,
       tecnico: s.tecnico?.name || "Sin asignar",
       auditorTI: s.auditorTI?.name || "Sin asignar",
