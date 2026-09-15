@@ -8,7 +8,7 @@ function getClient() {
   return client;
 }
 
-export type ChangeScope = "stores" | "users";
+export type ChangeScope = "stores" | "users" | "seguimiento";
 
 // Avisa a todos los clientes conectados (vía WebSocket) que algo cambió,
 // para que refresquen esa sección sin esperar a un refresco manual.

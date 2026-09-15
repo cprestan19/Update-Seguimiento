@@ -50,6 +50,9 @@ model User {
   checklistCompleted  StoreChecklistItem[]  @relation("ChecklistCompletedBy")
   auditLogs           AuditLog[]
 
+  seguimientosAsignados SeguimientoItem[]   @relation("SeguimientoResponsable")
+  seguimientosCreados   SeguimientoItem[]   @relation("SeguimientoCreatedBy")
+
   @@map("users")
 }
 
@@ -92,6 +95,7 @@ model Store {
 
   checklist         StoreChecklistItem[]
   incidents         Incident[]
+  seguimientos      SeguimientoItem[]
 
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
@@ -167,6 +171,40 @@ model Incident {
   createdAt      DateTime   @default(now())
 
   @@map("incidents")
+}
+
+// ---------------------------------------------------------------------------
+// Seguimiento post-migracion (correcciones pendientes tras el paso a Prism)
+// ---------------------------------------------------------------------------
+
+enum EstadoSeguimiento {
+  PENDIENTE
+  EN_SEGUIMIENTO
+  COMPLETADO
+}
+
+model SeguimientoItem {
+  id             String            @id @default(cuid())
+  region         String // texto libre: no siempre coincide 1:1 con Store.region (ej. "Todos", "Honduras T")
+  tienda         String? // texto libre: tienda puntual, varias tiendas, o alcance ("Todos")
+  storeId        String?
+  store          Store?            @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  descripcion    String
+  estado         EstadoSeguimiento @default(PENDIENTE)
+
+  responsableId  String?
+  responsable    User?             @relation("SeguimientoResponsable", fields: [responsableId], references: [id])
+
+  createdById    String?
+  createdBy      User?             @relation("SeguimientoCreatedBy", fields: [createdById], references: [id])
+
+  completadoEn   DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([region])
+  @@index([estado])
+  @@map("seguimiento_items")
 }
 
 // ---------------------------------------------------------------------------
