@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   motion,
@@ -70,6 +70,36 @@ function horaMinutosOrden(s: Pick<StoreRow, "minutosDia" | "inicioReal">): numbe
   if (!s.inicioReal) return s.minutosDia;
   const d = new Date(s.inicioReal);
   return d.getHours() * 60 + d.getMinutes();
+}
+
+type SortKey = "estado" | "pais" | "tienda" | "horario" | "tecnico" | "progreso";
+
+function sortStores(rows: StoreRow[], sortKey: SortKey | null, sortDir: "asc" | "desc"): StoreRow[] {
+  const arr = [...rows];
+  if (!sortKey) {
+    arr.sort((a, b) => horaMinutosOrden(a) - horaMinutosOrden(b));
+    return arr;
+  }
+  const dir = sortDir === "asc" ? 1 : -1;
+  arr.sort((a, b) => {
+    switch (sortKey) {
+      case "estado":
+        return ESTADO_LABEL[a.estado].localeCompare(ESTADO_LABEL[b.estado]) * dir;
+      case "pais":
+        return a.pais.localeCompare(b.pais) * dir;
+      case "tienda":
+        return a.tienda.localeCompare(b.tienda) * dir;
+      case "horario":
+        return (horaMinutosOrden(a) - horaMinutosOrden(b)) * dir;
+      case "tecnico":
+        return (a.tecnico?.name || "").localeCompare(b.tecnico?.name || "") * dir;
+      case "progreso":
+        return (a.progreso - b.progreso) * dir;
+      default:
+        return 0;
+    }
+  });
+  return arr;
 }
 
 function buildPaisAvance(stores: StoreRow[]) {
@@ -167,7 +197,6 @@ export default function DashboardPage() {
     });
   }, [stores, q, pais, region, estado]);
 
-  type SortKey = "estado" | "pais" | "tienda" | "horario" | "tecnico" | "progreso";
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -180,33 +209,32 @@ export default function DashboardPage() {
     }
   }
 
-  const sortedFiltered = useMemo(() => {
-    const arr = [...filtered];
-    if (!sortKey) {
-      arr.sort((a, b) => horaMinutosOrden(a) - horaMinutosOrden(b));
-      return arr;
+  const sortedFiltered = useMemo(() => sortStores(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
+
+  // Sin filtros activos, agrupamos por región y colapsamos (52 tiendas es
+  // demasiado largo para ver de corrido); al filtrar/buscar se ve la tabla
+  // plana de siempre para no esconder los resultados.
+  const hasActiveFilters = Boolean(q || pais || region || estado);
+  const groupedByRegion = useMemo(() => {
+    const map = new Map<string, StoreRow[]>();
+    for (const s of filtered) {
+      if (!map.has(s.region)) map.set(s.region, []);
+      map.get(s.region)!.push(s);
     }
-    const dir = sortDir === "asc" ? 1 : -1;
-    arr.sort((a, b) => {
-      switch (sortKey) {
-        case "estado":
-          return ESTADO_LABEL[a.estado].localeCompare(ESTADO_LABEL[b.estado]) * dir;
-        case "pais":
-          return a.pais.localeCompare(b.pais) * dir;
-        case "tienda":
-          return a.tienda.localeCompare(b.tienda) * dir;
-        case "horario":
-          return (horaMinutosOrden(a) - horaMinutosOrden(b)) * dir;
-        case "tecnico":
-          return (a.tecnico?.name || "").localeCompare(b.tecnico?.name || "") * dir;
-        case "progreso":
-          return (a.progreso - b.progreso) * dir;
-        default:
-          return 0;
-      }
-    });
-    return arr;
+    return Array.from(map.entries())
+      .map(([r, rows]) => [r, sortStores(rows, sortKey, sortDir)] as [string, StoreRow[]])
+      .sort((a, b) => a[0].localeCompare(b[0]));
   }, [filtered, sortKey, sortDir]);
+
+  const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set());
+  function toggleRegion(r: string) {
+    setExpandedRegions((prev) => {
+      const next = new Set(prev);
+      if (next.has(r)) next.delete(r);
+      else next.add(r);
+      return next;
+    });
+  }
 
   const kpis = useMemo(() => {
     const total = stores.length;
@@ -236,6 +264,88 @@ export default function DashboardPage() {
     const now = new Date();
     return buildAtencion(stores, now.getHours() * 60 + now.getMinutes());
   }, [stores]);
+
+  function renderRow(s: StoreRow) {
+    return (
+      <tr key={s.id} className="border-b border-border last:border-none hover:bg-[#151C27]">
+        <td className="px-4 py-2.5">
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${ESTADO_BADGE[s.estado]}`}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: ESTADO_COLOR[s.estado] }} />
+            {ESTADO_LABEL[s.estado]}
+            {s.incidenciasAbiertas > 0 ? ` (${s.incidenciasAbiertas})` : ""}
+          </span>
+        </td>
+        <td className="px-4 py-2.5">{s.pais}</td>
+        <td className="px-4 py-2.5">
+          <Link href={`/dashboard/tiendas/${s.id}`} className="font-medium hover:text-teal">
+            {s.tienda}
+          </Link>
+          <div className="text-[12px] text-muted">{s.region}</div>
+        </td>
+        <td className="px-4 py-2.5 font-mono text-muted text-xs">{horaMostrada(s)}</td>
+        <td className="px-4 py-2.5">
+          {s.tecnico ? s.tecnico.name : <span className="text-muted2 italic text-xs">Sin asignar</span>}
+        </td>
+        <td className="px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <div className="w-24 h-1.5 rounded bg-panel2 overflow-hidden">
+              <div className="h-full rounded" style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }} />
+            </div>
+            <span className="text-[11px] font-mono text-muted w-8 shrink-0">{s.progreso}%</span>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  function renderCard(s: StoreRow) {
+    return (
+      <Link
+        key={s.id}
+        href={`/dashboard/tiendas/${s.id}`}
+        className="block bg-panel border border-border rounded-xl p-3.5 active:bg-[#151C27] active:scale-[0.99] transition"
+      >
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${ESTADO_BADGE[s.estado]}`}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: ESTADO_COLOR[s.estado] }} />
+            {ESTADO_LABEL[s.estado]}
+            {s.incidenciasAbiertas > 0 ? ` (${s.incidenciasAbiertas})` : ""}
+          </span>
+          <span className="font-mono text-xs text-muted shrink-0">{horaMostrada(s)}</span>
+        </div>
+        <div className="font-medium text-sm">{s.tienda}</div>
+        <div className="text-xs text-muted mb-2.5">
+          {s.pais} · {s.region}
+        </div>
+        <div className="flex items-center gap-2.5">
+          <div className="flex-1 h-1.5 rounded bg-panel2 overflow-hidden">
+            <div className="h-full rounded" style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }} />
+          </div>
+          <span className="text-[11px] font-mono text-muted shrink-0">{s.progreso}%</span>
+          <span className="text-xs text-muted shrink-0">{s.tecnico ? s.tecnico.name : "Sin técnico"}</span>
+        </div>
+      </Link>
+    );
+  }
+
+  function renderRegionHeaderRow(r: string, rows: StoreRow[]) {
+    const expanded = expandedRegions.has(r);
+    return (
+      <tr
+        key={`group-${r}`}
+        onClick={() => toggleRegion(r)}
+        className="bg-panel2/70 hover:bg-panel2 cursor-pointer border-b border-border"
+      >
+        <td colSpan={6} className="px-4 py-2.5">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted font-semibold">
+            <span className={`transition-transform inline-block ${expanded ? "rotate-90" : ""}`}>▶</span>
+            {r}
+            <span className="text-muted2 normal-case font-normal">· {rows.length} tiendas</span>
+          </div>
+        </td>
+      </tr>
+    );
+  }
 
   if (loading) {
     return <div className="text-muted text-sm py-10 text-center">Cargando tiendas...</div>;
@@ -371,6 +481,19 @@ export default function DashboardPage() {
           <span className="text-xs text-muted ml-auto">
             {filtered.length} de {stores.length} tiendas
           </span>
+          {!hasActiveFilters && groupedByRegion.length > 0 && (
+            <button
+              type="button"
+              onClick={() =>
+                setExpandedRegions((prev) =>
+                  prev.size === groupedByRegion.length ? new Set() : new Set(groupedByRegion.map(([r]) => r))
+                )
+              }
+              className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-text transition"
+            >
+              {expandedRegions.size === groupedByRegion.length ? "Colapsar todo" : "Expandir todo"}
+            </button>
+          )}
           <a
             href="/api/reports/excel"
             className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-teal hover:border-teal/40 transition"
@@ -422,43 +545,15 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {sortedFiltered.map((s) => (
-                <tr key={s.id} className="border-b border-border last:border-none hover:bg-[#151C27]">
-                  <td className="px-4 py-2.5">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${ESTADO_BADGE[s.estado]}`}>
-                      <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: ESTADO_COLOR[s.estado] }}
-                      />
-                      {ESTADO_LABEL[s.estado]}
-                      {s.incidenciasAbiertas > 0 ? ` (${s.incidenciasAbiertas})` : ""}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5">{s.pais}</td>
-                  <td className="px-4 py-2.5">
-                    <Link href={`/dashboard/tiendas/${s.id}`} className="font-medium hover:text-teal">
-                      {s.tienda}
-                    </Link>
-                    <div className="text-[12px] text-muted">{s.region}</div>
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-muted text-xs">{horaMostrada(s)}</td>
-                  <td className="px-4 py-2.5">
-                    {s.tecnico ? s.tecnico.name : <span className="text-muted2 italic text-xs">Sin asignar</span>}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 h-1.5 rounded bg-panel2 overflow-hidden">
-                        <div
-                          className="h-full rounded"
-                          style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-mono text-muted w-8 shrink-0">{s.progreso}%</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {sortedFiltered.length === 0 && (
+              {hasActiveFilters
+                ? sortedFiltered.map((s) => renderRow(s))
+                : groupedByRegion.map(([r, rows]) => (
+                    <Fragment key={r}>
+                      {renderRegionHeaderRow(r, rows)}
+                      {expandedRegions.has(r) && rows.map((s) => renderRow(s))}
+                    </Fragment>
+                  ))}
+              {(hasActiveFilters ? sortedFiltered.length === 0 : groupedByRegion.length === 0) && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted text-sm">
                     No hay tiendas que coincidan con los filtros.
@@ -471,39 +566,26 @@ export default function DashboardPage() {
 
         {/* Tarjetas — mobile */}
         <div className="md:hidden space-y-2.5">
-          {sortedFiltered.map((s) => (
-            <Link
-              key={s.id}
-              href={`/dashboard/tiendas/${s.id}`}
-              className="block bg-panel border border-border rounded-xl p-3.5 active:bg-[#151C27] active:scale-[0.99] transition"
-            >
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${ESTADO_BADGE[s.estado]}`}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: ESTADO_COLOR[s.estado] }} />
-                  {ESTADO_LABEL[s.estado]}
-                  {s.incidenciasAbiertas > 0 ? ` (${s.incidenciasAbiertas})` : ""}
-                </span>
-                <span className="font-mono text-xs text-muted shrink-0">{horaMostrada(s)}</span>
-              </div>
-              <div className="font-medium text-sm">{s.tienda}</div>
-              <div className="text-xs text-muted mb-2.5">
-                {s.pais} · {s.region}
-              </div>
-              <div className="flex items-center gap-2.5">
-                <div className="flex-1 h-1.5 rounded bg-panel2 overflow-hidden">
-                  <div
-                    className="h-full rounded"
-                    style={{ width: `${s.progreso}%`, background: ESTADO_COLOR[s.estado] }}
-                  />
-                </div>
-                <span className="text-[11px] font-mono text-muted shrink-0">{s.progreso}%</span>
-                <span className="text-xs text-muted shrink-0">
-                  {s.tecnico ? s.tecnico.name : "Sin técnico"}
-                </span>
-              </div>
-            </Link>
-          ))}
-          {sortedFiltered.length === 0 && (
+          {hasActiveFilters
+            ? sortedFiltered.map((s) => renderCard(s))
+            : groupedByRegion.map(([r, rows]) => {
+                const expanded = expandedRegions.has(r);
+                return (
+                  <div key={r}>
+                    <button
+                      type="button"
+                      onClick={() => toggleRegion(r)}
+                      className="w-full flex items-center gap-2 px-1 py-2 text-left"
+                    >
+                      <span className={`text-muted text-xs transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span>
+                      <span className="text-xs uppercase tracking-wide text-muted font-semibold">{r}</span>
+                      <span className="text-[11px] text-muted2">· {rows.length}</span>
+                    </button>
+                    {expanded && <div className="space-y-2.5">{rows.map((s) => renderCard(s))}</div>}
+                  </div>
+                );
+              })}
+          {(hasActiveFilters ? sortedFiltered.length === 0 : groupedByRegion.length === 0) && (
             <p className="text-sm text-muted text-center py-8">No hay tiendas que coincidan con los filtros.</p>
           )}
         </div>

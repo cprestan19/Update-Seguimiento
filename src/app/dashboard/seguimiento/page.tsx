@@ -44,7 +44,7 @@ const ESTADO_LABEL: Record<Estado, string> = {
 const ESTADO_STYLE: Record<Estado, string> = {
   PENDIENTE: "bg-amberDim text-amber border border-amber/30",
   EN_SEGUIMIENTO: "bg-blueDim text-blue border border-blue/30",
-  COMPLETADO: "bg-tealDim text-teal border border-teal/30",
+  COMPLETADO: "bg-greenDim text-green border border-green/30",
 };
 
 const EMPTY_FORM = { region: "", tienda: "", descripcion: "", responsableId: "" };
@@ -61,6 +61,16 @@ export default function SeguimientoPage() {
 
   const [filterRegion, setFilterRegion] = useState("TODAS");
   const [filterEstado, setFilterEstado] = useState<"TODOS" | Estado>("TODOS");
+  const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set());
+
+  function toggleRegion(region: string) {
+    setExpandedRegions((prev) => {
+      const next = new Set(prev);
+      if (next.has(region)) next.delete(region);
+      else next.add(region);
+      return next;
+    });
+  }
 
   const load = useCallback(async () => {
     const [itemsRes, storesRes, usersRes] = await Promise.all([
@@ -266,6 +276,19 @@ export default function SeguimientoPage() {
             <option value="COMPLETADO">Completado</option>
           </select>
         </Field>
+        {grouped.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              setExpandedRegions((prev) =>
+                prev.size === grouped.length ? new Set() : new Set(grouped.map(([r]) => r))
+              )
+            }
+            className="text-xs text-muted hover:text-text ml-auto"
+          >
+            {expandedRegions.size === grouped.length ? "Colapsar todo" : "Expandir todo"}
+          </button>
+        )}
       </div>
 
       {grouped.length === 0 && (
@@ -274,13 +297,22 @@ export default function SeguimientoPage() {
         </div>
       )}
 
-      <div className="space-y-6">
-        {grouped.map(([region, rows]) => (
-          <div key={region}>
-            <div className="text-xs uppercase tracking-wide text-muted mb-2 font-semibold">
-              {region} <span className="text-muted2">· {rows.length}</span>
-            </div>
-            <div className="bg-panel border border-border rounded-2xl divide-y divide-border overflow-hidden">
+      <div className="space-y-3">
+        {grouped.map(([region, rows]) => {
+          const expanded = expandedRegions.has(region);
+          return (
+          <div key={region} className="bg-panel border border-border rounded-2xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleRegion(region)}
+              className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-panel2 transition"
+            >
+              <span className={`text-muted text-xs transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span>
+              <span className="text-xs uppercase tracking-wide text-muted font-semibold">{region}</span>
+              <span className="text-[11px] text-muted2">· {rows.length}</span>
+            </button>
+            {expanded && (
+            <div className="divide-y divide-border border-t border-border">
               {rows.map((it) => (
                 <div key={it.id} className="flex items-start gap-3 px-4 py-3 flex-wrap">
                   <div className="min-w-[150px]">
@@ -348,8 +380,10 @@ export default function SeguimientoPage() {
                 </div>
               ))}
             </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <style jsx global>{`

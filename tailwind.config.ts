@@ -14,6 +14,8 @@ const config: Config = {
         muted2: "#4E5A6B",
         teal: "#2DD4BF",
         tealDim: "#123832",
+        green: "#22C55E",
+        greenDim: "#0F2E1A",
         amber: "#F5A623",
         amberDim: "#3A2C0F",
         blue: "#3B9EFF",
