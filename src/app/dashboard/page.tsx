@@ -519,7 +519,7 @@ export default function DashboardPage() {
               href="/dashboard/tiendas/nueva"
               className="bg-tealDim border border-teal/30 rounded-lg px-3 py-2 text-xs font-semibold text-teal hover:bg-teal/20 transition"
             >
-              + Nueva tienda
+              + Nueva categoría
             </Link>
           )}
         </div>
@@ -540,7 +540,7 @@ export default function DashboardPage() {
             </a>
             {role === "ADMIN" && (
               <Link href="/dashboard/tiendas/nueva" className="text-xs font-semibold text-teal active:text-teal">
-                + Tienda
+                + Categoría
               </Link>
             )}
           </div>

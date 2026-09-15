@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useProjectContext } from "@/components/ProjectProvider";
+import { REGIONES_DISPONIBLES } from "@/lib/regiones";
 
-const EMPTY_FORM = { pais: "", region: "", tienda: "", horario: "" };
+const OTRA = "__otra__";
+const EMPTY_FORM = { pais: "", region: "", regionPersonalizada: "", nombre: "", horario: "" };
 
-export default function NuevaTiendaPage() {
+export default function NuevaCategoriaPage() {
   const { role } = useProjectContext();
   const router = useRouter();
   const [form, setForm] = useState(EMPTY_FORM);
@@ -15,27 +17,34 @@ export default function NuevaTiendaPage() {
 
   if (role !== "ADMIN") {
     return (
-      <div className="text-sm text-muted text-center py-10">Solo un administrador puede agregar tiendas.</div>
+      <div className="text-sm text-muted text-center py-10">Solo un administrador puede agregar categorías.</div>
     );
   }
+
+  const regionFinal = form.region === OTRA ? form.regionPersonalizada.trim() : form.region;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!form.pais.trim() || !form.region.trim() || !form.tienda.trim() || !form.horario.trim()) {
-      setError("Completa país, región, tienda y horario");
+    if (!form.pais.trim() || !regionFinal || !form.nombre.trim() || !form.horario.trim()) {
+      setError("Completa país, región, nombre y horario");
       return;
     }
     setSaving(true);
     const res = await fetch("/api/stores", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        pais: form.pais,
+        region: regionFinal,
+        tienda: form.nombre,
+        horario: form.horario,
+      }),
     });
     setSaving(false);
     if (!res.ok) {
       const data = await res.json();
-      setError(data.error || "No se pudo crear la tienda");
+      setError(data.error || "No se pudo crear la categoría");
       return;
     }
     router.push("/dashboard");
@@ -46,7 +55,7 @@ export default function NuevaTiendaPage() {
       <button onClick={() => router.push("/dashboard")} className="text-xs text-muted hover:text-text mb-4">
         &larr; Volver al dashboard
       </button>
-      <h1 className="font-display text-lg mb-1">Nueva tienda</h1>
+      <h1 className="font-display text-lg mb-1">Nueva categoría</h1>
       <p className="text-xs text-muted mb-6">
         Se le crea automáticamente el checklist del proyecto, en estado pendiente.
       </p>
@@ -61,17 +70,34 @@ export default function NuevaTiendaPage() {
           />
         </Field>
         <Field label="Región">
-          <input
+          <select
             value={form.region}
             onChange={(e) => setForm({ ...form, region: e.target.value })}
             className="input"
-            placeholder="Ej. CK Panama"
-          />
+          >
+            <option value="">Selecciona una región</option>
+            {REGIONES_DISPONIBLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+            <option value={OTRA}>Otra (especificar)</option>
+          </select>
         </Field>
-        <Field label="Tienda">
+        {form.region === OTRA && (
+          <Field label="Especifica la región">
+            <input
+              value={form.regionPersonalizada}
+              onChange={(e) => setForm({ ...form, regionPersonalizada: e.target.value })}
+              className="input"
+              placeholder="Ej. Costa Rica"
+            />
+          </Field>
+        )}
+        <Field label="Nombre">
           <input
-            value={form.tienda}
-            onChange={(e) => setForm({ ...form, tienda: e.target.value })}
+            value={form.nombre}
+            onChange={(e) => setForm({ ...form, nombre: e.target.value })}
             className="input"
             placeholder="Ej. CK Albrook Mall"
           />
@@ -90,7 +116,7 @@ export default function NuevaTiendaPage() {
           disabled={saving}
           className="bg-tealDim text-teal border border-teal/30 rounded-lg px-4 py-2 text-sm font-semibold hover:bg-teal/20 disabled:opacity-50"
         >
-          {saving ? "Guardando..." : "+ Crear tienda"}
+          {saving ? "Guardando..." : "+ Crear categoría"}
         </button>
       </form>
 
