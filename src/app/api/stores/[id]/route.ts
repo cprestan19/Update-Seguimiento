@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { publishChange } from "@/lib/realtime";
+import { getProjectContext, isProjectMember } from "@/lib/projectContext";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const store = await prisma.store.findUnique({
-    where: { id: params.id },
+  const store = await prisma.store.findFirst({
+    where: { id: params.id, projectId: ctx.projectId },
     include: {
       tecnico: { select: { id: true, name: true } },
       auditorTI: { select: { id: true, name: true } },
@@ -28,11 +27,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 // Reasignar personal (solo ADMIN) y/o registrar inventario inicial/final (cualquier usuario autenticado)
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  if (session.user.role === "MONITOR") {
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (ctx.role === "MONITOR") {
     return NextResponse.json({ error: "El rol Monitor solo puede ver, no editar" }, { status: 403 });
   }
+
+  const existente = await prisma.store.findFirst({ where: { id: params.id, projectId: ctx.projectId } });
+  if (!existente) return NextResponse.json({ error: "Tienda no encontrada" }, { status: 404 });
 
   const body = await req.json();
   const {
@@ -60,9 +62,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const reasignando = tecnicoId !== undefined || auditorTIId !== undefined || auditorInvId !== undefined;
   if (reasignando) {
-    if (tecnicoId !== undefined) data.tecnicoId = tecnicoId === "" ? null : tecnicoId;
-    if (auditorTIId !== undefined) data.auditorTIId = auditorTIId === "" ? null : auditorTIId;
-    if (auditorInvId !== undefined) data.auditorInvId = auditorInvId === "" ? null : auditorInvId;
+    for (const [campo, valor] of [
+      ["tecnicoId", tecnicoId],
+      ["auditorTIId", auditorTIId],
+      ["auditorInvId", auditorInvId],
+    ] as const) {
+      if (valor === undefined) continue;
+      if (valor && !(await isProjectMember(ctx.projectId, valor))) {
+        return NextResponse.json({ error: "Esa persona no pertenece a este proyecto" }, { status: 400 });
+      }
+      data[campo] = valor === "" ? null : valor;
+    }
     auditDetalle.tecnicoId = tecnicoId;
     auditDetalle.auditorTIId = auditorTIId;
     auditDetalle.auditorInvId = auditorInvId;
@@ -103,18 +113,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     data.inicioReal = nuevoInicio;
     auditDetalle.inicioReal = nuevoInicio;
 
-    const actual = await prisma.store.findUnique({ where: { id: params.id } });
-    if (actual?.finReal && nuevoInicio) {
-      data.duracionRealMin = Math.round((actual.finReal.getTime() - nuevoInicio.getTime()) / 60000);
+    if (existente.finReal && nuevoInicio) {
+      data.duracionRealMin = Math.round((existente.finReal.getTime() - nuevoInicio.getTime()) / 60000);
     }
   }
 
   const store = await prisma.store.update({ where: { id: params.id }, data });
-  await publishChange("stores");
+  await publishChange("stores", ctx.projectId);
 
   await prisma.auditLog.create({
     data: {
-      userId: session.user.id,
+      userId: ctx.userId,
+      projectId: ctx.projectId,
       accion: reasignando ? "ASIGNACION" : "INVENTARIO_ACTUALIZADO",
       entidad: `Store:${store.id}`,
       detalle: JSON.stringify(auditDetalle),

@@ -11,6 +11,7 @@ import {
   animate,
 } from "framer-motion";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
+import { useProjectContext } from "@/components/ProjectProvider";
 
 type StoreRow = {
   id: string;
@@ -145,6 +146,7 @@ function buildAtencion(stores: StoreRow[], nowMinutes: number): AtencionItem[] {
 }
 
 export default function DashboardPage() {
+  const { role } = useProjectContext();
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -512,6 +514,14 @@ export default function DashboardPage() {
           >
             Resumen ejecutivo
           </a>
+          {role === "ADMIN" && (
+            <Link
+              href="/dashboard/tiendas/nueva"
+              className="bg-tealDim border border-teal/30 rounded-lg px-3 py-2 text-xs font-semibold text-teal hover:bg-teal/20 transition"
+            >
+              + Nueva tienda
+            </Link>
+          )}
         </div>
 
         <div className="md:hidden flex items-center justify-between mb-4">
@@ -528,6 +538,11 @@ export default function DashboardPage() {
             <a href="/api/reports/executive" className="text-xs font-semibold text-muted active:text-blue">
               Ejecutivo
             </a>
+            {role === "ADMIN" && (
+              <Link href="/dashboard/tiendas/nueva" className="text-xs font-semibold text-teal active:text-teal">
+                + Tienda
+              </Link>
+            )}
           </div>
         </div>
 

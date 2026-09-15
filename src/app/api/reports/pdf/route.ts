@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { authOptions } from "@/lib/auth";
 import { getReportRows } from "@/lib/reportData";
+import { getProjectContext } from "@/lib/projectContext";
 
 const COLUMNS = [
   { key: "pais", label: "País", width: 70 },
@@ -17,10 +16,10 @@ const PAGE_HEIGHT = 841.89;
 const MARGIN = 40;
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const rows = await getReportRows();
+  const rows = await getReportRows(ctx.projectId);
 
   const total = rows.length;
   const completadas = rows.filter((r) => r.estado === "Completada").length;

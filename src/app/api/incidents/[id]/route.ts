@@ -1,19 +1,23 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { publishChange } from "@/lib/realtime";
+import { getProjectContext } from "@/lib/projectContext";
 
 export async function PATCH(_req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  if (session.user.role === "MONITOR") {
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (ctx.role === "MONITOR") {
     return NextResponse.json({ error: "El rol Monitor solo puede ver, no editar" }, { status: 403 });
   }
 
+  const existente = await prisma.incident.findFirst({
+    where: { id: params.id, store: { projectId: ctx.projectId } },
+  });
+  if (!existente) return NextResponse.json({ error: "Incidencia no encontrada" }, { status: 404 });
+
   const incident = await prisma.incident.update({
     where: { id: params.id },
-    data: { resuelta: true, resolvedById: session.user.id, resolvedAt: new Date() },
+    data: { resuelta: true, resolvedById: ctx.userId, resolvedAt: new Date() },
   });
 
   const abiertas = await prisma.incident.count({
@@ -27,11 +31,12 @@ export async function PATCH(_req: Request, { params }: { params: { id: string } 
     const estado = done === 0 ? "PENDIENTE" : done < total ? "EN_PROGRESO" : "COMPLETADA";
     await prisma.store.update({ where: { id: incident.storeId }, data: { estado } });
   }
-  await publishChange("stores");
+  await publishChange("stores", ctx.projectId);
 
   await prisma.auditLog.create({
     data: {
-      userId: session.user.id,
+      userId: ctx.userId,
+      projectId: ctx.projectId,
       accion: "INCIDENCIA_RESUELTA",
       entidad: `Incident:${incident.id}`,
     },

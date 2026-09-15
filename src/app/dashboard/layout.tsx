@@ -1,19 +1,34 @@
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 import DashboardNav from "@/components/DashboardNav";
+import { ProjectProvider } from "@/components/ProjectProvider";
+import { getProjectContext } from "@/lib/projectContext";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const ctx = await getProjectContext();
+  if (!ctx) redirect("/onboarding");
+
   return (
     <div className="min-h-screen bg-bg text-text">
-      <DashboardNav
-        name={session.user.name || session.user.username}
-        role={session.user.role}
-      />
-      <main className="max-w-[1400px] mx-auto px-4 md:px-7 py-6">{children}</main>
+      <ProjectProvider
+        value={{
+          projectId: ctx.projectId,
+          projectName: ctx.project.name,
+          role: ctx.role,
+          personnelRole: ctx.personnelRole,
+        }}
+      >
+        <DashboardNav
+          name={session.user.name || session.user.username}
+          projectName={ctx.project.name}
+          role={ctx.role}
+        />
+        <main className="max-w-[1400px] mx-auto px-4 md:px-7 py-6">{children}</main>
+      </ProjectProvider>
     </div>
   );
 }

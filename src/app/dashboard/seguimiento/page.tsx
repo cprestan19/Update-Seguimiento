@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
+import { useProjectContext } from "@/components/ProjectProvider";
 
 type Estado = "PENDIENTE" | "EN_SEGUIMIENTO" | "COMPLETADO";
 
@@ -50,8 +50,8 @@ const ESTADO_STYLE: Record<Estado, string> = {
 const EMPTY_FORM = { region: "", tienda: "", descripcion: "", responsableId: "" };
 
 export default function SeguimientoPage() {
-  const { data: session, status } = useSession();
-  const isMonitor = session?.user.role === "MONITOR";
+  const { role } = useProjectContext();
+  const isMonitor = role === "MONITOR";
 
   const [items, setItems] = useState<SeguimientoRow[]>([]);
   const [stores, setStores] = useState<StoreRow[]>([]);
@@ -84,8 +84,8 @@ export default function SeguimientoPage() {
   }, []);
 
   useEffect(() => {
-    if (status === "authenticated") load();
-  }, [status, load]);
+    load();
+  }, [load]);
 
   useRealtimeRefresh("seguimiento", load);
   useRealtimeRefresh("stores", load);
@@ -190,8 +190,6 @@ export default function SeguimientoPage() {
     await fetch(`/api/seguimiento/${id}`, { method: "DELETE" });
     load();
   }
-
-  if (status === "loading") return <div className="text-muted text-sm py-10 text-center">Cargando...</div>;
 
   return (
     <div>

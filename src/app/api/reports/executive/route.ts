@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getReportRows, type ReportRow } from "@/lib/reportData";
+import { getProjectContext } from "@/lib/projectContext";
 
 const PAGE_WIDTH = 595.28; // A4 portrait, en puntos
 const PAGE_HEIGHT = 841.89;
@@ -92,13 +91,13 @@ function buildPaisAvance(rows: ReportRow[]) {
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const rows = await getReportRows();
+  const rows = await getReportRows(ctx.projectId);
 
   const openIncidents = await prisma.incident.findMany({
-    where: { resuelta: false },
+    where: { resuelta: false, store: { projectId: ctx.projectId } },
     include: { store: { select: { pais: true, tienda: true } } },
     orderBy: { createdAt: "desc" },
   });

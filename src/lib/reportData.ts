@@ -25,8 +25,9 @@ export const ESTADO_LABEL: Record<string, string> = {
   CON_INCIDENCIA: "Con incidencia",
 };
 
-export async function getReportRows(): Promise<ReportRow[]> {
+export async function getReportRows(projectId: string): Promise<ReportRow[]> {
   const stores = await prisma.store.findMany({
+    where: { projectId },
     orderBy: { minutosDia: "asc" },
     include: {
       tecnico: { select: { name: true } },

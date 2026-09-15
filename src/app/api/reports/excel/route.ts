@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import ExcelJS from "exceljs";
-import { authOptions } from "@/lib/auth";
 import { getReportRows } from "@/lib/reportData";
+import { getProjectContext } from "@/lib/projectContext";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const rows = await getReportRows();
+  const rows = await getReportRows(ctx.projectId);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "ToolsIT Control Center";

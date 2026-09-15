@@ -1,15 +1,19 @@
 /**
  * Seed de datos iniciales:
- *  - Catalogo de checklist (categorias + items), tomado del plan de migracion.
- *  - Usuario administrador por defecto.
+ *  - Un Project ("Migración RPro → Prism 2.4") con su catálogo de checklist.
+ *  - Usuario administrador por defecto, miembro ADMIN de ese proyecto.
  *  - Las 49 tiendas reales extraidas de plan_de_migracion.xlsx.
  *
  * Ejecutar con: npx prisma db seed   (o) npm run prisma:seed
  */
 import { PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { ensureDefaultChecklistCatalog, instantiateChecklistForStore } from "../src/lib/storeChecklist";
 
 const prisma = new PrismaClient();
+
+const PROJECT_NAME = "Migración RPro → Prism 2.4";
+const PROJECT_SLUG = "rpro-prism";
 
 // -----------------------------------------------------------------------
 // Datos reales extraidos de plan_de_migracion.xlsx (hoja "Hoja1")
@@ -66,40 +70,6 @@ const STORES_SEED: { pais: string; region: string; tienda: string; horario: stri
   { pais: "Honduras", region: "Honduras", tienda: "Teg. City Mall", horario: "5:00PM" },
 ];
 
-// -----------------------------------------------------------------------
-// Catalogo de checklist (deducido de las columnas del Excel)
-// Nota: la cantidad real de "cajas" varia por tienda -- este catalogo
-// cubre el caso general (servidor + 2 cajas). Ajusta/agrega items por
-// tienda puntual desde el modulo de administracion una vez en produccion.
-// -----------------------------------------------------------------------
-const CATEGORIES_SEED = [
-  {
-    nombre: "Preparación",
-    orden: 1,
-    items: [
-      "Descarga de aplicativos",
-      "Verificación de inventario HQ",
-      "Verificación de inventario tienda",
-      "Backup de base de datos",
-    ],
-  },
-  {
-    nombre: "Actualización de equipos",
-    orden: 2,
-    items: ["Servidor (SVR)", "Caja 1", "Caja 2", "Creación de perfiles de comunicación"],
-  },
-  {
-    nombre: "Prueba de transacción",
-    orden: 3,
-    items: ["Cliente rápido", "Cambio de moneda", "Compra de empleado", "Factura electrónica"],
-  },
-  {
-    nombre: "Validación final",
-    orden: 4,
-    items: ["Validación de aplicativos"],
-  },
-];
-
 function parseHorario(h: string): number {
   const upper = h.trim().toUpperCase();
   const isMD = upper.includes("MD");
@@ -114,58 +84,46 @@ function parseHorario(h: string): number {
 }
 
 async function main() {
-  console.log("Sembrando catalogo de checklist...");
-  const categoryIds: Record<string, string> = {};
-  const itemDefIds: { id: string; nombre: string }[] = [];
+  console.log("Creando/asegurando el proyecto de la migración...");
+  const project = await prisma.project.upsert({
+    where: { slug: PROJECT_SLUG },
+    update: {},
+    create: { name: PROJECT_NAME, slug: PROJECT_SLUG },
+  });
 
-  for (const cat of CATEGORIES_SEED) {
-    const category = await prisma.checklistCategory.upsert({
-      where: { id: `seed-${cat.orden}` },
-      update: {},
-      create: { id: `seed-${cat.orden}`, nombre: cat.nombre, orden: cat.orden },
-    });
-    categoryIds[cat.nombre] = category.id;
-
-    for (let i = 0; i < cat.items.length; i++) {
-      const itemNombre = cat.items[i];
-      const item = await prisma.checklistItemDef.upsert({
-        where: { id: `seed-${cat.orden}-${i}` },
-        update: {},
-        create: {
-          id: `seed-${cat.orden}-${i}`,
-          categoryId: category.id,
-          nombre: itemNombre,
-          orden: i,
-        },
-      });
-      itemDefIds.push({ id: item.id, nombre: item.nombre });
-    }
-  }
+  console.log("Sembrando catalogo de checklist del proyecto...");
+  await ensureDefaultChecklistCatalog(project.id);
 
   console.log("Creando usuario administrador por defecto...");
   const defaultPassword = "Admin123!";
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
-  await prisma.user.upsert({
+  const admin = await prisma.user.upsert({
     where: { username: "admin" },
     update: {},
     create: {
       name: "Administrador",
       username: "admin",
       passwordHash,
-      role: Role.ADMIN,
+      lastActiveProjectId: project.id,
     },
+  });
+  await prisma.projectMember.upsert({
+    where: { projectId_userId: { projectId: project.id, userId: admin.id } },
+    update: {},
+    create: { projectId: project.id, userId: admin.id, role: Role.ADMIN },
   });
   console.log(`   -> usuario: admin / contraseña: ${defaultPassword}  (cámbiala apenas ingreses)`);
 
   console.log("Cargando las 49 tiendas del plan de migración...");
   for (const s of STORES_SEED) {
     const existing = await prisma.store.findFirst({
-      where: { tienda: s.tienda, pais: s.pais, horario: s.horario },
+      where: { projectId: project.id, tienda: s.tienda, pais: s.pais, horario: s.horario },
     });
     if (existing) continue;
 
     const store = await prisma.store.create({
       data: {
+        projectId: project.id,
         pais: s.pais,
         region: s.region,
         tienda: s.tienda,
@@ -174,18 +132,11 @@ async function main() {
       },
     });
 
-    // Crea el estado de checklist (pendiente) para cada item del catalogo
-    await prisma.storeChecklistItem.createMany({
-      data: itemDefIds.map((def) => ({
-        storeId: store.id,
-        itemDefId: def.id,
-        completado: false,
-      })),
-    });
+    await instantiateChecklistForStore(store.id, project.id);
   }
 
-  const total = await prisma.store.count();
-  console.log(`Listo. Total de tiendas en base de datos: ${total}`);
+  const total = await prisma.store.count({ where: { projectId: project.id } });
+  console.log(`Listo. Total de tiendas en el proyecto: ${total}`);
 }
 
 main()

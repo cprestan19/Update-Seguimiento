@@ -1,52 +1,65 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { publishChange } from "@/lib/realtime";
+import { getProjectContext } from "@/lib/projectContext";
 
-// Cualquier usuario autenticado puede leer el listado (lo necesitan los
-// selectores de tecnico/auditor al reasignar personal en una tienda).
-// Crear, editar y desactivar usuarios sigue siendo exclusivo de ADMIN.
+// Lista el equipo del proyecto activo (no todos los usuarios globales) —
+// cualquier miembro autenticado puede leerlo, lo necesitan los selectores
+// de tecnico/auditor/responsable.
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      role: true,
-      personnelRole: true,
-      pais: true,
-      active: true,
-      lastActiveAt: true,
-      _count: {
-        select: { storesAsTecnico: true, storesAsAuditorTI: true, storesAsAuditorInv: true },
+  const members = await prisma.projectMember.findMany({
+    where: { projectId: ctx.projectId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          active: true,
+          lastActiveAt: true,
+          _count: {
+            select: {
+              storesAsTecnico: { where: { projectId: ctx.projectId } },
+              storesAsAuditorTI: { where: { projectId: ctx.projectId } },
+              storesAsAuditorInv: { where: { projectId: ctx.projectId } },
+            },
+          },
+        },
       },
     },
+    orderBy: { createdAt: "asc" },
   });
 
   const ONLINE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutos (heartbeat cada 60s)
   const now = Date.now();
 
-  const data = users.map((u) => ({
-    ...u,
-    online: u.lastActiveAt ? now - u.lastActiveAt.getTime() < ONLINE_THRESHOLD_MS : false,
+  const data = members.map((m) => ({
+    id: m.user.id,
+    name: m.user.name,
+    username: m.user.username,
+    role: m.role,
+    personnelRole: m.personnelRole,
+    pais: m.pais,
+    active: m.user.active,
+    online: m.user.lastActiveAt ? now - m.user.lastActiveAt.getTime() < ONLINE_THRESHOLD_MS : false,
     tiendasAsignadas:
-      u._count.storesAsTecnico + u._count.storesAsAuditorTI + u._count.storesAsAuditorInv,
-    _count: undefined,
+      m.user._count.storesAsTecnico + m.user._count.storesAsAuditorTI + m.user._count.storesAsAuditorInv,
   }));
 
   return NextResponse.json(data);
 }
 
+// Crea una persona NUEVA (login nuevo) y la agrega al proyecto activo. Para
+// agregar a alguien que ya existe en el sistema, usar /api/users/search +
+// /api/users/attach en su lugar.
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  if (session.user.role !== "ADMIN") {
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (ctx.role !== "ADMIN") {
     return NextResponse.json({ error: "Solo un administrador puede crear usuarios" }, { status: 403 });
   }
 
@@ -69,7 +82,10 @@ export async function POST(req: Request) {
 
   const existing = await prisma.user.findUnique({ where: { username: username.trim() } });
   if (existing) {
-    return NextResponse.json({ error: "Ese nombre de usuario ya existe" }, { status: 409 });
+    return NextResponse.json(
+      { error: "Ese nombre de usuario ya existe. Si es una persona de otro proyecto, agrégala como 'Persona existente'." },
+      { status: 409 }
+    );
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -79,17 +95,28 @@ export async function POST(req: Request) {
       name: name.trim(),
       username: username.trim(),
       passwordHash,
-      role: role || "USER",
-      personnelRole: personnelRole || null,
-      pais: pais || null,
+      lastActiveProjectId: ctx.projectId,
+      projectMemberships: {
+        create: {
+          projectId: ctx.projectId,
+          role: role || "USER",
+          personnelRole: personnelRole || null,
+          pais: pais || null,
+        },
+      },
     },
-    select: { id: true, name: true, username: true, role: true, personnelRole: true, pais: true },
+    select: { id: true, name: true, username: true },
   });
 
   await prisma.auditLog.create({
-    data: { userId: session.user.id, accion: "USUARIO_CREADO", detalle: `Creado: ${user.username}` },
+    data: {
+      userId: ctx.userId,
+      projectId: ctx.projectId,
+      accion: "USUARIO_CREADO",
+      detalle: `Creado: ${user.username}`,
+    },
   });
-  await publishChange("users");
+  await publishChange("users", ctx.projectId);
 
-  return NextResponse.json(user);
+  return NextResponse.json({ ...user, role: role || "USER", personnelRole: personnelRole || null, pais: pais || null });
 }

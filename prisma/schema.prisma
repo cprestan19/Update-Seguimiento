@@ -29,17 +29,19 @@ enum PersonnelRole {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  name          String
-  username      String         @unique
-  passwordHash  String
-  role          Role           @default(USER)
-  personnelRole PersonnelRole?
-  pais          String?
-  active        Boolean        @default(true)
-  lastActiveAt  DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                  String         @id @default(cuid())
+  name                String
+  username            String         @unique
+  passwordHash        String
+  role                Role           @default(USER)
+  personnelRole       PersonnelRole?
+  pais                String?
+  active              Boolean        @default(true)
+  lastActiveAt        DateTime?
+  lastActiveProjectId String?
+  lastActiveProject   Project?       @relation("UserLastActiveProject", fields: [lastActiveProjectId], references: [id], onDelete: SetNull)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   storesAsTecnico     Store[] @relation("Tecnico")
   storesAsAuditorTI   Store[] @relation("AuditorTI")
@@ -53,7 +55,52 @@ model User {
   seguimientosAsignados SeguimientoItem[]   @relation("SeguimientoResponsable")
   seguimientosCreados   SeguimientoItem[]   @relation("SeguimientoCreatedBy")
 
+  projectMemberships    ProjectMember[]
+  projectsCreated       Project[]           @relation("ProjectCreatedBy")
+
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Proyectos (multi-tenant): cada Project es un workspace aislado; un User
+// puede pertenecer a varios via ProjectMember, con rol propio por proyecto.
+// ---------------------------------------------------------------------------
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  active      Boolean  @default(true)
+  createdById String?
+  createdBy   User?    @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members             ProjectMember[]
+  stores              Store[]
+  checklistCategories ChecklistCategory[]
+  seguimientos        SeguimientoItem[]
+  auditLogs           AuditLog[]
+  usersLastActiveHere User[]              @relation("UserLastActiveProject")
+
+  @@map("projects")
+}
+
+model ProjectMember {
+  id            String         @id @default(cuid())
+  projectId     String
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role          Role           @default(USER)
+  personnelRole PersonnelRole?
+  pais          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +116,8 @@ enum EstadoMigracion {
 
 model Store {
   id                String          @id @default(cuid())
+  projectId         String
+  project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   pais              String
   region            String
   tienda            String
@@ -102,6 +151,7 @@ model Store {
 
   @@index([pais])
   @@index([estado])
+  @@index([projectId])
   @@map("stores")
 }
 
@@ -110,18 +160,21 @@ model Store {
 // ---------------------------------------------------------------------------
 
 model ChecklistCategory {
-  id      String             @id @default(cuid())
-  nombre  String
-  orden   Int
-  items   ChecklistItemDef[]
+  id        String             @id @default(cuid())
+  projectId String
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  nombre    String
+  orden     Int
+  items     ChecklistItemDef[]
 
+  @@index([projectId])
   @@map("checklist_categories")
 }
 
 model ChecklistItemDef {
   id          String              @id @default(cuid())
   categoryId  String
-  category    ChecklistCategory   @relation(fields: [categoryId], references: [id])
+  category    ChecklistCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   nombre      String
   orden       Int
   storeItems  StoreChecklistItem[]
@@ -134,7 +187,7 @@ model StoreChecklistItem {
   storeId         String
   store           Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
   itemDefId       String
-  itemDef         ChecklistItemDef  @relation(fields: [itemDefId], references: [id])
+  itemDef         ChecklistItemDef  @relation(fields: [itemDefId], references: [id], onDelete: Cascade)
   completado      Boolean           @default(false)
   completadoPorId String?
   completadoPor   User?             @relation("ChecklistCompletedBy", fields: [completadoPorId], references: [id])
@@ -185,6 +238,8 @@ enum EstadoSeguimiento {
 
 model SeguimientoItem {
   id             String            @id @default(cuid())
+  projectId      String
+  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   region         String // texto libre: no siempre coincide 1:1 con Store.region (ej. "Todos", "Honduras T")
   tienda         String? // texto libre: tienda puntual, varias tiendas, o alcance ("Todos")
   storeId        String?
@@ -204,6 +259,7 @@ model SeguimientoItem {
 
   @@index([region])
   @@index([estado])
+  @@index([projectId])
   @@map("seguimiento_items")
 }
 
@@ -215,10 +271,13 @@ model AuditLog {
   id        String   @id @default(cuid())
   userId    String?
   user      User?    @relation(fields: [userId], references: [id])
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   accion    String // ej: "CHECKLIST_TOGGLE", "ASIGNACION", "INCIDENCIA_CREADA", "LOGIN"
   entidad   String? // ej: "Store:cly123..."
   detalle   String?
   createdAt DateTime @default(now())
 
+  @@index([projectId])
   @@map("audit_logs")
 }

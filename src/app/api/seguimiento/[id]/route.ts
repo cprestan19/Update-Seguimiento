@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { publishChange } from "@/lib/realtime";
+import { getProjectContext } from "@/lib/projectContext";
 
 const ESTADOS = ["PENDIENTE", "EN_SEGUIMIENTO", "COMPLETADO"] as const;
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  if (session.user.role === "MONITOR") {
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (ctx.role === "MONITOR") {
     return NextResponse.json({ error: "El rol Monitor solo puede ver, no editar" }, { status: 403 });
   }
+
+  const existente = await prisma.seguimientoItem.findFirst({
+    where: { id: params.id, projectId: ctx.projectId },
+  });
+  if (!existente) return NextResponse.json({ error: "Ítem no encontrado" }, { status: 404 });
 
   const body = (await req.json()) as {
     estado?: (typeof ESTADOS)[number];
@@ -58,11 +62,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     },
   });
 
-  await publishChange("seguimiento");
+  await publishChange("seguimiento", ctx.projectId);
 
   await prisma.auditLog.create({
     data: {
-      userId: session.user.id,
+      userId: ctx.userId,
+      projectId: ctx.projectId,
       accion: "SEGUIMIENTO_ACTUALIZADO",
       entidad: `SeguimientoItem:${item.id}`,
       detalle: body.estado ? `Estado -> ${body.estado}` : "Edición",
@@ -73,18 +78,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  if (session.user.role === "MONITOR") {
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (ctx.role === "MONITOR") {
     return NextResponse.json({ error: "El rol Monitor solo puede ver, no editar" }, { status: 403 });
   }
 
+  const existente = await prisma.seguimientoItem.findFirst({
+    where: { id: params.id, projectId: ctx.projectId },
+  });
+  if (!existente) return NextResponse.json({ error: "Ítem no encontrado" }, { status: 404 });
+
   await prisma.seguimientoItem.delete({ where: { id: params.id } });
-  await publishChange("seguimiento");
+  await publishChange("seguimiento", ctx.projectId);
 
   await prisma.auditLog.create({
     data: {
-      userId: session.user.id,
+      userId: ctx.userId,
+      projectId: ctx.projectId,
       accion: "SEGUIMIENTO_ELIMINADO",
       entidad: `SeguimientoItem:${params.id}`,
     },

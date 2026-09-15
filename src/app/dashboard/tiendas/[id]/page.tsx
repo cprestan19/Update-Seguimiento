@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
+import { useProjectContext } from "@/components/ProjectProvider";
 
 type Person = { id: string; name: string };
 
@@ -95,8 +95,8 @@ const ESTADO_LABEL: Record<string, string> = {
 export default function StoreDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { data: session } = useSession();
-  const isMonitor = session?.user?.role === "MONITOR";
+  const { role } = useProjectContext();
+  const isMonitor = role === "MONITOR";
 
   const [store, setStore] = useState<StoreDetail | null>(null);
   const [tecnicos, setTecnicos] = useState<Person[]>([]);
@@ -133,7 +133,6 @@ export default function StoreDetailPage() {
   }, [store?.id]);
 
   useEffect(() => {
-    if (!session) return;
     fetch("/api/users")
       .then((r) => r.json())
       .then((users: any[]) => {
@@ -141,7 +140,7 @@ export default function StoreDetailPage() {
         setAuditoresTI(users.filter((u) => u.personnelRole === "AUDITOR_TI"));
         setAuditoresInv(users.filter((u) => u.personnelRole === "AUDITOR_INVENTARIO"));
       });
-  }, [session]);
+  }, []);
 
   if (!store) return <div className="text-muted text-sm py-10 text-center">Cargando...</div>;
 
@@ -260,21 +259,21 @@ export default function StoreDetailPage() {
           label="Técnico"
           value={store.tecnico}
           options={tecnicos}
-          editable={!!session && !isMonitor}
+          editable={!isMonitor}
           onChange={(v) => assign("tecnicoId", v)}
         />
         <AssignField
           label="Auditor TI"
           value={store.auditorTI}
           options={auditoresTI}
-          editable={!!session && !isMonitor}
+          editable={!isMonitor}
           onChange={(v) => assign("auditorTIId", v)}
         />
         <AssignField
           label="Auditor inventario"
           value={store.auditorInv}
           options={auditoresInv}
-          editable={!!session && !isMonitor}
+          editable={!isMonitor}
           onChange={(v) => assign("auditorInvId", v)}
         />
         <div className="bg-panel border border-border rounded-lg px-2.5 py-2">

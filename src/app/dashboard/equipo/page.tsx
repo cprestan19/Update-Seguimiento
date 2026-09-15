@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
+import { useProjectContext } from "@/components/ProjectProvider";
 
 type PersonRow = {
   id: string;
@@ -16,6 +16,8 @@ type PersonRow = {
   online: boolean;
   tiendasAsignadas: number;
 };
+
+type SearchResult = { id: string; name: string; username: string };
 
 const ROLE_LABEL: Record<string, string> = {
   TECNICO: "Técnico",
@@ -43,11 +45,17 @@ function buildWhatsAppLink(info: ShareInfo) {
 }
 
 export default function EquipoPage() {
-  const { data: session, status } = useSession();
+  const { role } = useProjectContext();
   const router = useRouter();
   const [users, setUsers] = useState<PersonRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+
+  const [tab, setTab] = useState<"nueva" | "existente">("nueva");
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [attachForm, setAttachForm] = useState({ role: "USER", personnelRole: "TECNICO", pais: "" });
+  const [attaching, setAttaching] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState(EMPTY_FORM);
@@ -62,20 +70,31 @@ export default function EquipoPage() {
   }, []);
 
   useEffect(() => {
-    if (status === "authenticated" && session.user.role !== "ADMIN") {
+    if (role !== "ADMIN") {
       router.push("/dashboard");
       return;
     }
-    if (status === "authenticated") load();
-  }, [status, session, load, router]);
+    load();
+  }, [role, load, router]);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
     const interval = setInterval(load, 30_000);
     return () => clearInterval(interval);
-  }, [status, load]);
+  }, [load]);
 
   useRealtimeRefresh("users", load);
+
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/users/search?q=${encodeURIComponent(query.trim())}`);
+      if (res.ok) setResults(await res.json());
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -92,6 +111,25 @@ export default function EquipoPage() {
     }
     setShareInfo({ name: form.name, username: form.username, password: form.password });
     setForm(EMPTY_FORM);
+    load();
+  }
+
+  async function attach(person: SearchResult) {
+    setAttaching(person.id);
+    setError(null);
+    const res = await fetch("/api/users/attach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: person.id, ...attachForm }),
+    });
+    setAttaching(null);
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error || "No se pudo agregar a esa persona");
+      return;
+    }
+    setQuery("");
+    setResults([]);
     load();
   }
 
@@ -143,29 +181,18 @@ export default function EquipoPage() {
     load();
   }
 
-  async function deactivate(id: string) {
-    if (!confirm("¿Eliminar a esta persona? Se desasignará de todas sus tiendas y no podrá iniciar sesión (se puede reactivar después).")) return;
+  async function quitarDelProyecto(id: string) {
+    if (!confirm("¿Quitar a esta persona de este proyecto? Se desasignará de las tiendas del proyecto (sigue existiendo su cuenta y su acceso a otros proyectos).")) return;
     await fetch(`/api/users/${id}`, { method: "DELETE" });
-    load();
-  }
-
-  async function reactivate(id: string) {
-    await fetch(`/api/users/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active: true }),
-    });
     load();
   }
 
   const onlineUsers = users.filter((u) => u.online);
 
-  if (status === "loading") return <div className="text-muted text-sm py-10 text-center">Cargando...</div>;
-
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-        <h1 className="font-display text-lg">Equipo de migración</h1>
+        <h1 className="font-display text-lg">Equipo del proyecto</h1>
         <div className="relative">
           <button
             type="button"
@@ -193,77 +220,166 @@ export default function EquipoPage() {
         </div>
       </div>
       <p className="text-xs text-muted mb-6">
-        Aquí das de alta a técnicos, auditores TI y auditores de inventario, con su usuario y contraseña de acceso.
+        Da de alta a técnicos, auditores TI y auditores de inventario de este proyecto, o agrega a alguien que ya
+        tiene cuenta en otro proyecto.
       </p>
 
-      <form onSubmit={submit} className="bg-panel border border-border rounded-2xl p-5 mb-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
-          <Field label="Nombre completo">
-            <input
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="input"
-            />
-          </Field>
-          <Field label="Usuario (login)">
-            <input
-              required
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
-              className="input"
-            />
-          </Field>
-          <Field label="Contraseña temporal">
-            <input
-              required
-              type="password"
-              minLength={8}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="input"
-            />
-          </Field>
-          <Field label="Rol de acceso">
-            <select
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
-              className="input"
-            >
-              <option value="USER">Usuario</option>
-              <option value="ADMIN">Administrador</option>
-              <option value="MONITOR">Monitor (solo ver)</option>
-            </select>
-          </Field>
-          <Field label="Rol funcional">
-            <select
-              value={form.personnelRole}
-              onChange={(e) => setForm({ ...form, personnelRole: e.target.value })}
-              className="input"
-            >
-              <option value="TECNICO">Técnico</option>
-              <option value="AUDITOR_TI">Auditor TI</option>
-              <option value="AUDITOR_INVENTARIO">Auditor Inventario</option>
-              <option value="COORDINADOR">Coordinador</option>
-              <option value="INFRAESTRUCTURA">Infraestructura</option>
-            </select>
-          </Field>
-          <Field label="País (opcional)">
-            <input
-              value={form.pais}
-              onChange={(e) => setForm({ ...form, pais: e.target.value })}
-              className="input"
-            />
-          </Field>
-        </div>
-        {error && <p className="text-xs text-red mb-2">{error}</p>}
+      <div className="flex gap-1 mb-3">
         <button
-          type="submit"
-          className="bg-tealDim text-teal border border-teal/30 rounded-lg px-4 py-2 text-sm font-semibold hover:bg-teal/20"
+          type="button"
+          onClick={() => setTab("nueva")}
+          className={`text-xs px-3 py-1.5 rounded-lg transition ${tab === "nueva" ? "bg-panel2 text-text" : "text-muted hover:text-text"}`}
         >
-          + Agregar al equipo
+          Nueva persona
         </button>
-      </form>
+        <button
+          type="button"
+          onClick={() => setTab("existente")}
+          className={`text-xs px-3 py-1.5 rounded-lg transition ${tab === "existente" ? "bg-panel2 text-text" : "text-muted hover:text-text"}`}
+        >
+          Persona existente
+        </button>
+      </div>
+
+      {tab === "nueva" ? (
+        <form onSubmit={submit} className="bg-panel border border-border rounded-2xl p-5 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
+            <Field label="Nombre completo">
+              <input
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Usuario (login)">
+              <input
+                required
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Contraseña temporal">
+              <input
+                required
+                type="password"
+                minLength={8}
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Rol de acceso">
+              <select
+                value={form.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                className="input"
+              >
+                <option value="USER">Usuario</option>
+                <option value="ADMIN">Administrador</option>
+                <option value="MONITOR">Monitor (solo ver)</option>
+              </select>
+            </Field>
+            <Field label="Rol funcional">
+              <select
+                value={form.personnelRole}
+                onChange={(e) => setForm({ ...form, personnelRole: e.target.value })}
+                className="input"
+              >
+                <option value="TECNICO">Técnico</option>
+                <option value="AUDITOR_TI">Auditor TI</option>
+                <option value="AUDITOR_INVENTARIO">Auditor Inventario</option>
+                <option value="COORDINADOR">Coordinador</option>
+                <option value="INFRAESTRUCTURA">Infraestructura</option>
+              </select>
+            </Field>
+            <Field label="País (opcional)">
+              <input
+                value={form.pais}
+                onChange={(e) => setForm({ ...form, pais: e.target.value })}
+                className="input"
+              />
+            </Field>
+          </div>
+          {error && <p className="text-xs text-red mb-2">{error}</p>}
+          <button
+            type="submit"
+            className="bg-tealDim text-teal border border-teal/30 rounded-lg px-4 py-2 text-sm font-semibold hover:bg-teal/20"
+          >
+            + Agregar al equipo
+          </button>
+        </form>
+      ) : (
+        <div className="bg-panel border border-border rounded-2xl p-5 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
+            <Field label="Rol de acceso para este proyecto">
+              <select
+                value={attachForm.role}
+                onChange={(e) => setAttachForm({ ...attachForm, role: e.target.value })}
+                className="input"
+              >
+                <option value="USER">Usuario</option>
+                <option value="ADMIN">Administrador</option>
+                <option value="MONITOR">Monitor (solo ver)</option>
+              </select>
+            </Field>
+            <Field label="Rol funcional">
+              <select
+                value={attachForm.personnelRole}
+                onChange={(e) => setAttachForm({ ...attachForm, personnelRole: e.target.value })}
+                className="input"
+              >
+                <option value="TECNICO">Técnico</option>
+                <option value="AUDITOR_TI">Auditor TI</option>
+                <option value="AUDITOR_INVENTARIO">Auditor Inventario</option>
+                <option value="COORDINADOR">Coordinador</option>
+                <option value="INFRAESTRUCTURA">Infraestructura</option>
+              </select>
+            </Field>
+            <Field label="País (opcional)">
+              <input
+                value={attachForm.pais}
+                onChange={(e) => setAttachForm({ ...attachForm, pais: e.target.value })}
+                className="input"
+              />
+            </Field>
+          </div>
+          <Field label="Buscar por nombre o usuario">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Escribe al menos 2 letras..."
+              className="input"
+            />
+          </Field>
+          {error && <p className="text-xs text-red mt-2">{error}</p>}
+          {results.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {results.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 bg-panel2 border border-border rounded-lg px-3 py-2"
+                >
+                  <div className="text-sm">
+                    {p.name} <span className="text-muted text-xs">@{p.username}</span>
+                  </div>
+                  <button
+                    onClick={() => attach(p)}
+                    disabled={attaching === p.id}
+                    className="text-xs text-teal hover:underline disabled:opacity-50"
+                  >
+                    {attaching === p.id ? "Agregando..." : "Agregar a este proyecto"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {query.trim().length >= 2 && results.length === 0 && (
+            <p className="text-xs text-muted mt-3">Sin resultados (o ya pertenece a este proyecto).</p>
+          )}
+        </div>
+      )}
 
       {shareInfo && (
         <div className="bg-tealDim border border-teal/30 rounded-xl p-3.5 mb-6 flex items-center justify-between flex-wrap gap-3">
@@ -333,6 +449,7 @@ export default function EquipoPage() {
                   >
                     <option value="USER">Usuario</option>
                     <option value="ADMIN">Administrador</option>
+                    <option value="MONITOR">Monitor (solo ver)</option>
                   </select>
                 </Field>
                 <Field label="Rol funcional">
@@ -390,11 +507,6 @@ export default function EquipoPage() {
                 <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-panel text-muted border border-border">
                   {u.role}
                 </span>
-                {!u.active && (
-                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-redDim text-red">
-                    Inactivo
-                  </span>
-                )}
               </div>
               <span className="text-[11px] text-muted">
                 {u.pais || "Sin país fijo"} · {u.tiendasAsignadas} tiendas asignadas
@@ -403,15 +515,9 @@ export default function EquipoPage() {
                 <button onClick={() => startEdit(u)} className="text-muted hover:text-blue" title="Editar">
                   Editar
                 </button>
-                {u.active ? (
-                  <button onClick={() => deactivate(u.id)} className="text-muted hover:text-red" title="Eliminar">
-                    Eliminar
-                  </button>
-                ) : (
-                  <button onClick={() => reactivate(u.id)} className="text-muted hover:text-teal" title="Reactivar">
-                    Reactivar
-                  </button>
-                )}
+                <button onClick={() => quitarDelProyecto(u.id)} className="text-muted hover:text-red" title="Quitar del proyecto">
+                  Quitar del proyecto
+                </button>
               </div>
             </div>
           )
