@@ -105,6 +105,24 @@ export default function SeguimientoPage() {
     [items]
   );
 
+  const avancePorRegion = useMemo(() => {
+    const map = new Map<string, { total: number; completados: number }>();
+    for (const it of items) {
+      if (!map.has(it.region)) map.set(it.region, { total: 0, completados: 0 });
+      const e = map.get(it.region)!;
+      e.total++;
+      if (it.estado === "COMPLETADO") e.completados++;
+    }
+    return Array.from(map.entries())
+      .map(([region, v]) => ({
+        region,
+        total: v.total,
+        completados: v.completados,
+        pct: v.total > 0 ? Math.round((v.completados / v.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.pct - a.pct);
+  }, [items]);
+
   const activePeople = useMemo(() => people.filter((p) => p.active), [people]);
 
   const filteredItems = items.filter((it) => {
@@ -181,6 +199,35 @@ export default function SeguimientoPage() {
       <p className="text-xs text-muted mb-6">
         Temas por corregir después del paso a Prism 2.4, organizados por región, con responsable y estado.
       </p>
+
+      <div className="bg-panel border border-border rounded-2xl p-4 mb-6">
+        <h2 className="text-sm font-semibold font-display mb-4">Avance de seguimiento por región</h2>
+        <div className="space-y-3">
+          {avancePorRegion.map((r) => (
+            <button
+              type="button"
+              key={r.region}
+              onClick={() => {
+                setFilterRegion(r.region);
+                setExpandedRegions(new Set([r.region]));
+              }}
+              className="w-full flex items-center gap-3 -mx-1.5 px-1.5 py-0.5 rounded-lg transition text-left hover:bg-panel2 active:scale-[0.98]"
+            >
+              <span className="w-[120px] shrink-0 text-xs text-muted truncate" title={r.region}>
+                {r.region}
+              </span>
+              <div className="flex-1 h-2.5 rounded-full bg-panel2 overflow-hidden">
+                <div className="h-full rounded-full bg-green" style={{ width: `${r.pct}%` }} />
+              </div>
+              <span className="w-9 shrink-0 text-right text-xs font-mono text-text">{r.pct}%</span>
+              <span className="w-14 shrink-0 text-right text-[11px] text-muted">
+                {r.completados}/{r.total}
+              </span>
+            </button>
+          ))}
+          {avancePorRegion.length === 0 && <p className="text-sm text-muted">Sin datos todavía.</p>}
+        </div>
+      </div>
 
       <datalist id="regiones-datalist">
         {regionesExistentesStores.map((r) => (
