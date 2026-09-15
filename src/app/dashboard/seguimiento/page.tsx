@@ -42,9 +42,9 @@ const ESTADO_LABEL: Record<Estado, string> = {
 };
 
 const ESTADO_STYLE: Record<Estado, string> = {
-  PENDIENTE: "bg-amberDim text-amber border border-amber/30",
-  EN_SEGUIMIENTO: "bg-blueDim text-blue border border-blue/30",
-  COMPLETADO: "bg-greenDim text-green border border-green/30",
+  PENDIENTE: "!bg-amberDim !text-amber border !border-amber/30",
+  EN_SEGUIMIENTO: "!bg-blueDim !text-blue border !border-blue/30",
+  COMPLETADO: "!bg-greenDim !text-green border !border-green/30",
 };
 
 const EMPTY_FORM = { region: "", tienda: "", descripcion: "", responsableId: "" };
