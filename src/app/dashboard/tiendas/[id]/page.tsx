@@ -97,6 +97,9 @@ export default function StoreDetailPage() {
   const router = useRouter();
   const { role } = useProjectContext();
   const isMonitor = role === "MONITOR";
+  const isAdmin = role === "ADMIN";
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [store, setStore] = useState<StoreDetail | null>(null);
   const [tecnicos, setTecnicos] = useState<Person[]>([]);
@@ -152,6 +155,26 @@ export default function StoreDetailPage() {
   const categories = Array.from(
     new Map(store.checklist.map((c) => [c.itemDef.category.nombre, c.itemDef.category.orden])).entries()
   ).sort((a, b) => a[1] - b[1]);
+
+  const sinProgreso =
+    store.estado === "PENDIENTE" &&
+    !store.inicioReal &&
+    !store.checklist.some((c) => c.completado) &&
+    store.incidents.length === 0;
+
+  async function deleteCategoria() {
+    if (!confirm(`¿Eliminar "${store!.tienda}"? Esta acción no se puede deshacer.`)) return;
+    setDeleteError(null);
+    setDeleting(true);
+    const res = await fetch(`/api/stores/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json();
+      setDeleteError(data.error || "No se pudo eliminar la categoría");
+      setDeleting(false);
+      return;
+    }
+    router.push("/dashboard");
+  }
 
   async function toggle(storeChecklistItemId: string) {
     await fetch("/api/checklist", {
@@ -235,9 +258,22 @@ export default function StoreDetailPage() {
 
   return (
     <div className="max-w-2xl">
-      <button onClick={() => router.push("/dashboard")} className="text-xs text-muted hover:text-text mb-4">
-        &larr; Volver al dashboard
-      </button>
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => router.push("/dashboard")} className="text-xs text-muted hover:text-text">
+          &larr; Volver al dashboard
+        </button>
+        {isAdmin && (
+          <button
+            onClick={deleteCategoria}
+            disabled={!sinProgreso || deleting}
+            title={sinProgreso ? "Eliminar categoría" : "Solo se puede eliminar si no tiene progreso"}
+            className="text-xs text-red hover:underline disabled:text-muted2 disabled:no-underline disabled:cursor-not-allowed"
+          >
+            {deleting ? "Eliminando..." : "Eliminar categoría"}
+          </button>
+        )}
+      </div>
+      {deleteError && <p className="text-xs text-red mb-3">{deleteError}</p>}
 
       <div className="text-[11px] uppercase tracking-wide text-muted">
         {store.pais} · {store.region}

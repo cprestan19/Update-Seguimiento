@@ -36,6 +36,7 @@ model User {
   role                Role           @default(USER)
   personnelRole       PersonnelRole?
   pais                String?
+  isSuperAdmin        Boolean        @default(false)
   active              Boolean        @default(true)
   lastActiveAt        DateTime?
   lastActiveProjectId String?
@@ -62,19 +63,42 @@ model User {
 }
 
 // ---------------------------------------------------------------------------
+// Departamentos: unidad organizativa duena de uno o mas Proyectos. Se entra a
+// la seccion de proyectos de un Departamento con una contrasena de
+// administrador compartida (no ligada a un usuario individual).
+// ---------------------------------------------------------------------------
+
+model Department {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  adminPasswordHash String
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  projects          Project[]
+
+  @@map("departments")
+}
+
+// ---------------------------------------------------------------------------
 // Proyectos (multi-tenant): cada Project es un workspace aislado; un User
 // puede pertenecer a varios via ProjectMember, con rol propio por proyecto.
+// Cada Project pertenece a un Department.
 // ---------------------------------------------------------------------------
 
 model Project {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  active      Boolean  @default(true)
-  createdById String?
-  createdBy   User?    @relation("ProjectCreatedBy", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  active       Boolean  @default(true)
+  departmentId String
+  department   Department  @relation(fields: [departmentId], references: [id])
+  createdById  String?
+  createdBy    User?    @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   members             ProjectMember[]
   stores              Store[]
@@ -83,6 +107,7 @@ model Project {
   auditLogs           AuditLog[]
   usersLastActiveHere User[]              @relation("UserLastActiveProject")
 
+  @@index([departmentId])
   @@map("projects")
 }
 

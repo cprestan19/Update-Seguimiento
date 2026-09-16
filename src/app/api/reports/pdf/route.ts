@@ -3,13 +3,15 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { getReportRows } from "@/lib/reportData";
 import { getProjectContext } from "@/lib/projectContext";
 
-const COLUMNS = [
-  { key: "pais", label: "País", width: 70 },
-  { key: "tienda", label: "Tienda", width: 150 },
-  { key: "estado", label: "Estado", width: 90 },
-  { key: "progreso", label: "Avance", width: 50 },
-  { key: "tecnico", label: "Técnico", width: 130 },
-] as const;
+function buildColumns(paisLabel: string) {
+  return [
+    { key: "pais", label: paisLabel, width: 70 },
+    { key: "tienda", label: "Tienda", width: 150 },
+    { key: "estado", label: "Estado", width: 90 },
+    { key: "progreso", label: "Avance", width: 50 },
+    { key: "tecnico", label: "Técnico", width: 130 },
+  ] as const;
+}
 
 const PAGE_WIDTH = 595.28; // A4 portrait, en puntos
 const PAGE_HEIGHT = 841.89;
@@ -20,6 +22,7 @@ export async function GET() {
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const rows = await getReportRows(ctx.projectId);
+  const COLUMNS = buildColumns(ctx.isMigrationProject ? "País" : "Departamento");
 
   const total = rows.length;
   const completadas = rows.filter((r) => r.estado === "Completada").length;

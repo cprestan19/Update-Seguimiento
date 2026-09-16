@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type ProjectOption = { id: string; name: string; slug: string; role: "ADMIN" | "USER" | "MONITOR" };
 
 export default function OnboardingPage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectOption[] | null>(null);
   const [switching, setSwitching] = useState(false);
@@ -16,8 +17,14 @@ export default function OnboardingPage() {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
 
+  const isSuperAdmin = Boolean((session?.user as unknown as { isSuperAdmin?: boolean })?.isSuperAdmin);
+
   useEffect(() => {
     if (status !== "authenticated") return;
+    if (isSuperAdmin) {
+      router.push("/superadmin");
+      return;
+    }
     (async () => {
       const res = await fetch("/api/projects");
       if (!res.ok) return;
@@ -57,14 +64,23 @@ export default function OnboardingPage() {
         <div className="w-full max-w-sm bg-panel border border-border rounded-2xl p-8 text-center">
           <h1 className="font-display text-base mb-2">Sin proyectos asignados</h1>
           <p className="text-sm text-muted mb-6">
-            Todavía no perteneces a ningún proyecto. Pide a un administrador que te agregue a uno.
+            Todavía no perteneces a ningún proyecto. Pide a un administrador que te agregue a uno, o entra a la
+            sección de departamentos si tienes la contraseña de alguno.
           </p>
-          <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="text-xs text-muted hover:text-red border border-border rounded-lg px-4 py-2 transition"
-          >
-            Salir
-          </button>
+          <div className="flex items-center justify-center gap-2">
+            <Link
+              href="/departamentos"
+              className="text-xs text-teal hover:underline border border-teal/30 rounded-lg px-4 py-2 transition"
+            >
+              Departamentos
+            </Link>
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="text-xs text-muted hover:text-red border border-border rounded-lg px-4 py-2 transition"
+            >
+              Salir
+            </button>
+          </div>
         </div>
       </main>
     );

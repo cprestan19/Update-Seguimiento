@@ -7,11 +7,16 @@ import { REGIONES_DISPONIBLES } from "@/lib/regiones";
 
 const OTRA = "__otra__";
 const EMPTY_FORM = { pais: "", region: "", regionPersonalizada: "", nombre: "", horario: "" };
+const HORAS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
+const MINUTOS = Array.from({ length: 60 }, (_, i) => i);
 
 export default function NuevaCategoriaPage() {
-  const { role } = useProjectContext();
+  const { role, isMigrationProject } = useProjectContext();
   const router = useRouter();
   const [form, setForm] = useState(EMPTY_FORM);
+  const [horaHora, setHoraHora] = useState(6);
+  const [horaMinuto, setHoraMinuto] = useState(0);
+  const [horaAmPm, setHoraAmPm] = useState<"AM" | "PM">("AM");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -21,13 +26,17 @@ export default function NuevaCategoriaPage() {
     );
   }
 
+  const paisLabel = isMigrationProject ? "País" : "Departamento";
   const regionFinal = form.region === OTRA ? form.regionPersonalizada.trim() : form.region;
+  const horarioFinal = isMigrationProject
+    ? form.horario.trim()
+    : `${horaHora}:${String(horaMinuto).padStart(2, "0")} ${horaAmPm}`;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!form.pais.trim() || !regionFinal || !form.nombre.trim() || !form.horario.trim()) {
-      setError("Completa país, región, nombre y horario");
+    if (!form.pais.trim() || !regionFinal || !form.nombre.trim() || !horarioFinal) {
+      setError(`Completa ${paisLabel.toLowerCase()}, región, nombre y horario`);
       return;
     }
     setSaving(true);
@@ -38,7 +47,7 @@ export default function NuevaCategoriaPage() {
         pais: form.pais,
         region: regionFinal,
         tienda: form.nombre,
-        horario: form.horario,
+        horario: horarioFinal,
       }),
     });
     setSaving(false);
@@ -61,12 +70,12 @@ export default function NuevaCategoriaPage() {
       </p>
 
       <form onSubmit={submit} className="bg-panel border border-border rounded-2xl p-5 space-y-3">
-        <Field label="País">
+        <Field label={paisLabel}>
           <input
             value={form.pais}
             onChange={(e) => setForm({ ...form, pais: e.target.value })}
             className="input"
-            placeholder="Ej. Panamá"
+            placeholder={isMigrationProject ? "Ej. Panamá" : "Ej. San Martín"}
           />
         </Field>
         <Field label="Región">
@@ -103,12 +112,47 @@ export default function NuevaCategoriaPage() {
           />
         </Field>
         <Field label="Horario">
-          <input
-            value={form.horario}
-            onChange={(e) => setForm({ ...form, horario: e.target.value })}
-            className="input"
-            placeholder="Ej. 6:00AM"
-          />
+          {isMigrationProject ? (
+            <input
+              value={form.horario}
+              onChange={(e) => setForm({ ...form, horario: e.target.value })}
+              className="input"
+              placeholder="Ej. 6:00AM"
+            />
+          ) : (
+            <div className="flex gap-2">
+              <select
+                value={horaHora}
+                onChange={(e) => setHoraHora(Number(e.target.value))}
+                className="input"
+              >
+                {HORAS_12.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={horaMinuto}
+                onChange={(e) => setHoraMinuto(Number(e.target.value))}
+                className="input"
+              >
+                {MINUTOS.map((m) => (
+                  <option key={m} value={m}>
+                    {String(m).padStart(2, "0")}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={horaAmPm}
+                onChange={(e) => setHoraAmPm(e.target.value as "AM" | "PM")}
+                className="input"
+              >
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
+          )}
         </Field>
         {error && <p className="text-xs text-red">{error}</p>}
         <button

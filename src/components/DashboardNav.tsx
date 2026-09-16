@@ -11,10 +11,12 @@ export default function DashboardNav({
   name,
   projectName,
   role,
+  isSuperAdmin,
 }: {
   name: string;
   projectName: string;
   role: "ADMIN" | "USER" | "MONITOR";
+  isSuperAdmin: boolean;
 }) {
   const pathname = usePathname();
 
@@ -97,7 +99,7 @@ export default function DashboardNav({
                 </ul>
                 <div className="border-t border-border mt-1.5 pt-1.5">
                   <Link
-                    href="/dashboard/proyectos"
+                    href="/departamentos"
                     onClick={() => setShowSwitcher(false)}
                     className="block text-xs px-2 py-1.5 rounded-md text-teal hover:bg-panel transition"
                   >
@@ -119,6 +121,14 @@ export default function DashboardNav({
           {role === "ADMIN" && (
             <Link href="/dashboard/equipo" className={linkClass("/dashboard/equipo")}>
               Equipo
+            </Link>
+          )}
+          <Link href="/departamentos" className={linkClass("/departamentos")}>
+            Departamentos
+          </Link>
+          {isSuperAdmin && (
+            <Link href="/superadmin" className={linkClass("/superadmin")}>
+              Panel global
             </Link>
           )}
         </nav>

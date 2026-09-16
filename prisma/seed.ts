@@ -14,6 +14,9 @@ const prisma = new PrismaClient();
 
 const PROJECT_NAME = "Migración RPro → Prism 2.4";
 const PROJECT_SLUG = "rpro-prism";
+const DEPARTMENT_NAME = "Migración RPro";
+const DEPARTMENT_SLUG = "migracion-rpro";
+const DEPARTMENT_DEFAULT_PASSWORD = "Departamento123!";
 
 // -----------------------------------------------------------------------
 // Datos reales extraidos de plan_de_migracion.xlsx (hoja "Hoja1")
@@ -84,11 +87,23 @@ function parseHorario(h: string): number {
 }
 
 async function main() {
+  console.log("Creando/asegurando el departamento por defecto...");
+  const department = await prisma.department.upsert({
+    where: { slug: DEPARTMENT_SLUG },
+    update: {},
+    create: {
+      name: DEPARTMENT_NAME,
+      slug: DEPARTMENT_SLUG,
+      adminPasswordHash: await bcrypt.hash(DEPARTMENT_DEFAULT_PASSWORD, 10),
+    },
+  });
+  console.log(`   -> contraseña de administrador del departamento: ${DEPARTMENT_DEFAULT_PASSWORD}  (cámbiala apenas ingreses)`);
+
   console.log("Creando/asegurando el proyecto de la migración...");
   const project = await prisma.project.upsert({
     where: { slug: PROJECT_SLUG },
     update: {},
-    create: { name: PROJECT_NAME, slug: PROJECT_SLUG },
+    create: { name: PROJECT_NAME, slug: PROJECT_SLUG, departmentId: department.id },
   });
 
   console.log("Sembrando catalogo de checklist del proyecto...");

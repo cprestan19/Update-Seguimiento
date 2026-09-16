@@ -34,15 +34,27 @@ export const authOptions: AuthOptions = {
           id: user.id,
           name: user.name,
           username: user.username,
+          isSuperAdmin: user.isSuperAdmin,
         } as any;
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    // deptAdminIds vive solo en el JWT firmado (nunca en la base de datos):
+    // desbloquear un departamento dura lo que dure la sesión (8h), y no se
+    // puede falsear desde el cliente porque el JWT está firmado por NextAuth.
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = (user as any).id;
         token.username = (user as any).username;
+        token.isSuperAdmin = (user as any).isSuperAdmin;
+        token.deptAdminIds = [];
+      }
+      if (trigger === "update" && session?.deptAdminId) {
+        const current: string[] = (token.deptAdminIds as string[]) || [];
+        if (!current.includes(session.deptAdminId)) {
+          token.deptAdminIds = [...current, session.deptAdminId];
+        }
       }
       return token;
     },
@@ -50,6 +62,8 @@ export const authOptions: AuthOptions = {
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).username = token.username;
+        (session.user as any).isSuperAdmin = Boolean(token.isSuperAdmin);
+        (session.user as any).deptAdminIds = (token.deptAdminIds as string[]) || [];
       }
       return session;
     },

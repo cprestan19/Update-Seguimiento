@@ -6,6 +6,11 @@ import type { PersonnelRole, Role } from "@prisma/client";
 
 export const ACTIVE_PROJECT_COOKIE = "active_project";
 
+// El proyecto original de la migración RPro→Prism conserva su terminología
+// ("País", horario en texto libre); todo proyecto nuevo usa la terminología
+// actualizada ("Departamento", horario con selector AM/PM).
+export const MIGRATION_PROJECT_SLUG = "rpro-prism";
+
 export type ProjectContext = {
   userId: string;
   projectId: string;
@@ -13,6 +18,7 @@ export type ProjectContext = {
   role: Role;
   personnelRole: PersonnelRole | null;
   pais: string | null;
+  isMigrationProject: boolean;
 };
 
 // Resuelve, en cada request, a qué proyecto pertenece la sesión actual y con
@@ -40,6 +46,7 @@ export async function getProjectContext(): Promise<ProjectContext | null> {
     role: member.role,
     personnelRole: member.personnelRole,
     pais: member.pais,
+    isMigrationProject: member.project.slug === MIGRATION_PROJECT_SLUG,
   };
 }
 

@@ -7,6 +7,7 @@ export type ProjectContextValue = {
   projectName: string;
   role: "ADMIN" | "USER" | "MONITOR";
   personnelRole: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
+  isMigrationProject: boolean;
 };
 
 const ProjectCtx = createContext<ProjectContextValue | null>(null);

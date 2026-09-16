@@ -95,6 +95,7 @@ export async function GET() {
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const rows = await getReportRows(ctx.projectId);
+  const paisLabel = ctx.isMigrationProject ? "País" : "Departamento";
 
   const openIncidents = await prisma.incident.findMany({
     where: { resuelta: false, store: { projectId: ctx.projectId } },
@@ -214,8 +215,8 @@ export async function GET() {
   bar(MARGIN, y - 12, CONTENT_WIDTH, 14, avanceGlobal, COLOR.teal);
   y -= 32;
 
-  // ---- Avance por país ----
-  sectionTitle("Avance por país");
+  // ---- Avance por país / departamento ----
+  sectionTitle(`Avance por ${paisLabel.toLowerCase()}`);
   const paisLabelW = 110;
   const paisPctW = 90;
   const paisBarW = CONTENT_WIDTH - paisLabelW - paisPctW;
@@ -248,7 +249,7 @@ export async function GET() {
     y -= 18;
   } else {
     const cols = [
-      { label: "País", w: 80 },
+      { label: paisLabel, w: 80 },
       { label: "Tienda", w: 175 },
       { label: "Motivo", w: 100 },
       { label: "Técnico", w: 160 },

@@ -20,12 +20,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
           projectName: ctx.project.name,
           role: ctx.role,
           personnelRole: ctx.personnelRole,
+          isMigrationProject: ctx.isMigrationProject,
         }}
       >
         <DashboardNav
           name={session.user.name || session.user.username}
           projectName={ctx.project.name}
           role={ctx.role}
+          isSuperAdmin={Boolean((session.user as unknown as { isSuperAdmin?: boolean }).isSuperAdmin)}
         />
         <main className="max-w-[1400px] mx-auto px-4 md:px-7 py-6">{children}</main>
       </ProjectProvider>

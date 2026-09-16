@@ -133,3 +133,47 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   return NextResponse.json(store);
 }
+
+// Solo se puede eliminar una categoría que todavía no tiene ningún progreso
+// registrado, para no perder trabajo real ya hecho.
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (ctx.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo un administrador puede eliminar categorías" }, { status: 403 });
+  }
+
+  const store = await prisma.store.findFirst({
+    where: { id: params.id, projectId: ctx.projectId },
+    include: { checklist: { select: { completado: true } }, incidents: { select: { id: true } } },
+  });
+  if (!store) return NextResponse.json({ error: "Tienda no encontrada" }, { status: 404 });
+
+  const tieneProgreso =
+    store.estado !== "PENDIENTE" ||
+    store.inicioReal !== null ||
+    store.checklist.some((c) => c.completado) ||
+    store.incidents.length > 0;
+
+  if (tieneProgreso) {
+    return NextResponse.json(
+      { error: "Solo se puede eliminar una categoría que no tenga progreso registrado" },
+      { status: 400 }
+    );
+  }
+
+  await prisma.store.delete({ where: { id: store.id } });
+  await publishChange("stores", ctx.projectId);
+
+  await prisma.auditLog.create({
+    data: {
+      userId: ctx.userId,
+      projectId: ctx.projectId,
+      accion: "TIENDA_ELIMINADA",
+      entidad: `Store:${store.id}`,
+      detalle: store.tienda,
+    },
+  });
+
+  return NextResponse.json({ ok: true });
+}

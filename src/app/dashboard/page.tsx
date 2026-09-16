@@ -146,7 +146,8 @@ function buildAtencion(stores: StoreRow[], nowMinutes: number): AtencionItem[] {
 }
 
 export default function DashboardPage() {
-  const { role } = useProjectContext();
+  const { role, isMigrationProject } = useProjectContext();
+  const paisLabel = isMigrationProject ? "País" : "Departamento";
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -400,6 +401,7 @@ export default function DashboardPage() {
       <div className="order-4 lg:order-2">
         <PaisAvanceChart
           rows={paisAvance}
+          label={paisLabel}
           onSelect={(p) => {
             setEstado("");
             setQ("");
@@ -449,7 +451,7 @@ export default function DashboardPage() {
             onChange={(e) => setPais(e.target.value)}
             className="bg-panel border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue"
           >
-            <option value="">Todos los países</option>
+            <option value="">{isMigrationProject ? "Todos los países" : "Todos los departamentos"}</option>
             {paises.map((p) => (
               <option key={p} value={p}>
                 {p}
@@ -552,7 +554,7 @@ export default function DashboardPage() {
             <thead>
               <tr className="bg-panel2 text-[11px] uppercase tracking-wide text-muted">
                 <SortTh label="Estado" sortKey="estado" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="País" sortKey="pais" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label={paisLabel} sortKey="pais" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="Tienda" sortKey="tienda" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="Horario" sortKey="horario" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="Técnico" sortKey="tecnico" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
@@ -611,6 +613,7 @@ export default function DashboardPage() {
         onClose={() => setFiltersOpen(false)}
         pais={pais}
         setPais={setPais}
+        paisLabel={paisLabel}
         region={region}
         setRegion={setRegion}
         estado={estado}
@@ -960,13 +963,15 @@ function LegendItem({
 function PaisAvanceChart({
   rows,
   onSelect,
+  label,
 }: {
   rows: { pais: string; total: number; completadas: number; pct: number }[];
   onSelect?: (pais: string) => void;
+  label: string;
 }) {
   return (
     <div className="bg-panel border border-border rounded-2xl p-4 h-full">
-      <h2 className="text-sm font-semibold font-display mb-4">Avance por país</h2>
+      <h2 className="text-sm font-semibold font-display mb-4">Avance por {label.toLowerCase()}</h2>
       <div className="space-y-3">
         {rows.map((r) => (
           <button
@@ -1051,6 +1056,7 @@ function FilterSheet({
   onClose,
   pais,
   setPais,
+  paisLabel,
   region,
   setRegion,
   estado,
@@ -1062,6 +1068,7 @@ function FilterSheet({
   onClose: () => void;
   pais: string;
   setPais: (v: string) => void;
+  paisLabel: string;
   region: string;
   setRegion: (v: string) => void;
   estado: string;
@@ -1096,7 +1103,7 @@ function FilterSheet({
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-[11px] uppercase tracking-wide text-muted mb-1.5">País</label>
+                <label className="block text-[11px] uppercase tracking-wide text-muted mb-1.5">{paisLabel}</label>
                 <select
                   value={pais}
                   onChange={(e) => setPais(e.target.value)}

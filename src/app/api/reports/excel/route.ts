@@ -8,6 +8,7 @@ export async function GET() {
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const rows = await getReportRows(ctx.projectId);
+  const paisLabel = ctx.isMigrationProject ? "País" : "Departamento";
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "ToolsIT Control Center";
@@ -15,7 +16,7 @@ export async function GET() {
 
   const sheet = workbook.addWorksheet("Tiendas");
   sheet.columns = [
-    { header: "País", key: "pais", width: 16 },
+    { header: paisLabel, key: "pais", width: 16 },
     { header: "Región", key: "region", width: 18 },
     { header: "Tienda", key: "tienda", width: 26 },
     { header: "Horario", key: "horario", width: 10 },
