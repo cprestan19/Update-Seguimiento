@@ -46,6 +46,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     costoInicial,
     costoFinal,
     inicioReal,
+    region,
   } = body as {
     tecnicoId?: string | null;
     auditorTIId?: string | null;
@@ -55,12 +56,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     costoInicial?: number | string | null;
     costoFinal?: number | string | null;
     inicioReal?: string | null;
+    region?: string;
   };
+
+  if (region !== undefined && ctx.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo un administrador puede cambiar la región" }, { status: 403 });
+  }
 
   const data: Record<string, unknown> = {};
   const auditDetalle: Record<string, unknown> = {};
 
-  const reasignando = tecnicoId !== undefined || auditorTIId !== undefined || auditorInvId !== undefined;
+  if (region !== undefined) {
+    if (!region.trim()) {
+      return NextResponse.json({ error: "La región no puede quedar vacía" }, { status: 400 });
+    }
+    data.region = region.trim();
+    auditDetalle.regionAnterior = existente.region;
+    auditDetalle.regionNueva = region.trim();
+  }
+
+  const reasignando = tecnicoId !== undefined || auditorTIId !== undefined || auditorInvId !== undefined || region !== undefined;
   if (reasignando) {
     for (const [campo, valor] of [
       ["tecnicoId", tecnicoId],

@@ -100,6 +100,8 @@ export default function StoreDetailPage() {
   const isAdmin = role === "ADMIN";
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [regionError, setRegionError] = useState<string | null>(null);
+  const [regionesConocidas, setRegionesConocidas] = useState<string[]>([]);
 
   const [store, setStore] = useState<StoreDetail | null>(null);
   const [tecnicos, setTecnicos] = useState<Person[]>([]);
@@ -148,6 +150,17 @@ export default function StoreDetailPage() {
       });
   }, []);
 
+  // Sugerencias de región (autocompletado) a partir de las regiones que ya
+  // existen en este proyecto — la región es texto libre (ej. "CK Panama"),
+  // no una lista cerrada, así que no se restringe, solo se sugiere.
+  useEffect(() => {
+    fetch("/api/stores")
+      .then((r) => r.json())
+      .then((stores: { region: string }[]) => {
+        setRegionesConocidas([...new Set(stores.map((s) => s.region))].sort((a, b) => a.localeCompare(b, "es")));
+      });
+  }, []);
+
   if (!store) return <div className="text-muted text-sm py-10 text-center">Cargando...</div>;
 
   const aplicables = store.checklist.filter((c) => !c.noAplica);
@@ -177,6 +190,21 @@ export default function StoreDetailPage() {
       return;
     }
     router.push("/dashboard");
+  }
+
+  async function saveRegion(nuevaRegion: string) {
+    setRegionError(null);
+    const res = await fetch(`/api/stores/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ region: nuevaRegion }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      setRegionError(data.error || "No se pudo cambiar la región");
+      return;
+    }
+    load();
   }
 
   async function toggle(storeChecklistItemId: string) {
@@ -278,9 +306,33 @@ export default function StoreDetailPage() {
       </div>
       {deleteError && <p className="text-xs text-red mb-3">{deleteError}</p>}
 
-      <div className="text-[11px] uppercase tracking-wide text-muted">
-        {store.pais} · {store.region}
+      <div className="text-[11px] uppercase tracking-wide text-muted flex items-center gap-1">
+        <span>{store.pais} ·</span>
+        {isAdmin ? (
+          <>
+            <input
+              key={store.region}
+              list="regiones-conocidas"
+              defaultValue={store.region}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v && v !== store.region) saveRegion(v);
+                else e.target.value = store.region;
+              }}
+              title="Cambiar la región de esta categoría"
+              className="bg-transparent border-b border-dashed border-muted2 hover:border-teal focus:border-teal focus:outline-none uppercase tracking-wide text-[11px] text-muted px-0.5 min-w-[80px]"
+            />
+            <datalist id="regiones-conocidas">
+              {regionesConocidas.map((r) => (
+                <option key={r} value={r} />
+              ))}
+            </datalist>
+          </>
+        ) : (
+          <span>{store.region}</span>
+        )}
       </div>
+      {regionError && <p className="text-xs text-red -mt-1 mb-1">{regionError}</p>}
       <h1 className="font-display text-xl mt-1">{store.tienda}</h1>
       <div className="text-xs text-muted mt-1">
         Ventana: <span className="font-mono">{store.horario}</span> · {ESTADO_LABEL[store.estado]}

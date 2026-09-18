@@ -3,18 +3,24 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { getReportRows } from "@/lib/reportData";
 import { getProjectContext } from "@/lib/projectContext";
 
+// Incluye región y los tres roles de asignación (técnico, auditor TI,
+// auditor de inventario) — no solo técnico — para que el PDF refleje la
+// asignación completa de cada tienda, igual que ya hace el reporte Excel.
 function buildColumns(paisLabel: string) {
   return [
-    { key: "pais", label: paisLabel, width: 70 },
-    { key: "tienda", label: "Tienda", width: 150 },
-    { key: "estado", label: "Estado", width: 90 },
-    { key: "progreso", label: "Avance", width: 50 },
-    { key: "tecnico", label: "Técnico", width: 130 },
+    { key: "pais", label: paisLabel, width: 65 },
+    { key: "region", label: "Región", width: 85 },
+    { key: "tienda", label: "Tienda", width: 130 },
+    { key: "estado", label: "Estado", width: 75 },
+    { key: "progreso", label: "Avance", width: 45 },
+    { key: "tecnico", label: "Técnico", width: 110 },
+    { key: "auditorTI", label: "Auditor TI", width: 110 },
+    { key: "auditorInv", label: "Auditor Inv.", width: 110 },
   ] as const;
 }
 
-const PAGE_WIDTH = 595.28; // A4 portrait, en puntos
-const PAGE_HEIGHT = 841.89;
+const PAGE_WIDTH = 841.89; // A4 horizontal (landscape), en puntos — hace falta
+const PAGE_HEIGHT = 595.28; // el ancho extra para caber las 3 columnas de asignación
 const MARGIN = 40;
 
 export async function GET() {
@@ -97,10 +103,13 @@ export async function GET() {
     let x = MARGIN;
     const values: Record<(typeof COLUMNS)[number]["key"], string> = {
       pais: r.pais,
+      region: r.region,
       tienda: r.tienda,
       estado: r.estado,
       progreso: `${r.progreso}%`,
       tecnico: r.tecnico,
+      auditorTI: r.auditorTI,
+      auditorInv: r.auditorInv,
     };
     for (const col of COLUMNS) {
       text(ellipsize(values[col.key], charsPerWidth(col.width)), x, y, { size: 9 });
