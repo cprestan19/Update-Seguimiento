@@ -403,11 +403,16 @@ model Requirement {
   numero    String // "REQ-2026-00001", unico dentro del proyecto (ver RequirementCounter)
 
   titulo              String
-  descripcion         String
+  descripcion         String // descripcion detallada del requerimiento, sin limite de longitud (TEXT)
   objetivo            String?
   alcance             String?
   fueraDeAlcance      String?
   criteriosAceptacion String?
+
+  // Explicacion tecnica de COMO se realizara el cambio -- la llena el
+  // responsable tecnico (o cualquier no-MONITOR), por separado y
+  // normalmente despues de la solicitud inicial. Tambien sin limite (TEXT).
+  explicacionTecnica String?
 
   // Solicitud: solicitante/gerente suelen ser personas de negocio que nunca
   // inician sesion en el sistema -> texto libre, no se crea un User falso.

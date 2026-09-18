@@ -74,6 +74,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   setText("alcance", "alcance");
   setText("fueraDeAlcance", "fueraDeAlcance");
   setText("criteriosAceptacion", "criteriosAceptacion");
+  setText("explicacionTecnica", "explicacionTecnica");
   setText("solicitadoPorNombre", "solicitadoPorNombre");
   setText("departamentoSolicitante", "departamentoSolicitante");
   setText("gerenteDepartamento", "gerenteDepartamento");

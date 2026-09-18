@@ -161,8 +161,13 @@ export default function NuevoRequerimientoPage() {
           <Field label="Título">
             <input value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} className="input" placeholder="Ej. Actualización de RetailApp" />
           </Field>
-          <Field label="Descripción">
-            <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} className="input" rows={3} />
+          <Field label="Descripción detallada (sin límite de texto, explica todo lo necesario)">
+            <textarea
+              value={form.descripcion}
+              onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+              className="input input-lg"
+              rows={10}
+            />
           </Field>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Field label="Objetivo (opcional)">
@@ -301,6 +306,15 @@ export default function NuevoRequerimientoPage() {
           font-size: 13px;
           width: 100%;
           color: #e6edf3;
+        }
+        /* Texto libre y extenso: interlineado generoso, se puede agrandar
+           arrastrando la esquina. Sin text-align:justify a propósito — en
+           texto de ancho variable "justificar" deja espacios en blanco
+           irregulares entre palabras y empeora la lectura. */
+        .input-lg {
+          line-height: 1.6;
+          min-height: 220px;
+          resize: vertical;
         }
         .input:focus {
           outline: 2px solid #3b9eff;

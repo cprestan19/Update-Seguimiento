@@ -44,6 +44,7 @@ type RequirementDetail = {
   alcance: string | null;
   fueraDeAlcance: string | null;
   criteriosAceptacion: string | null;
+  explicacionTecnica: string | null;
   solicitadoPorNombre: string;
   departamentoSolicitante: string;
   gerenteDepartamento: string | null;
@@ -382,9 +383,32 @@ export default function RequerimientoDetailPage() {
         </div>
       </Card>
 
-      {/* ---- Descripción ---- */}
-      <Card title="Descripción">
-        <EditableTextarea label="Descripción" value={req.descripcion} editable={!isMonitor} onSave={(v) => patch({ descripcion: v })} required />
+      {/* ---- Descripción detallada (texto libre, sin límite) ---- */}
+      <Card title="Descripción detallada del requerimiento">
+        <EditableTextarea
+          label="Descripción"
+          value={req.descripcion}
+          editable={!isMonitor}
+          onSave={(v) => patch({ descripcion: v })}
+          required
+          size="lg"
+        />
+      </Card>
+
+      {/* ---- Explicación técnica: la llena el responsable técnico, por separado ---- */}
+      <Card title="Explicación técnica del cambio">
+        <p className="text-[11px] text-muted -mt-1">Cómo se realizará el cambio — la completa el responsable técnico.</p>
+        <EditableTextarea
+          label="Explicación técnica"
+          value={req.explicacionTecnica || ""}
+          editable={!isMonitor}
+          onSave={(v) => patch({ explicacionTecnica: v })}
+          size="lg"
+        />
+      </Card>
+
+      {/* ---- Detalles adicionales ---- */}
+      <Card title="Detalles adicionales">
         <EditableTextarea label="Objetivo" value={req.objetivo || ""} editable={!isMonitor} onSave={(v) => patch({ objetivo: v })} />
         <EditableTextarea label="Alcance" value={req.alcance || ""} editable={!isMonitor} onSave={(v) => patch({ alcance: v })} />
         <EditableTextarea label="Fuera de alcance" value={req.fueraDeAlcance || ""} editable={!isMonitor} onSave={(v) => patch({ fueraDeAlcance: v })} />
@@ -555,34 +579,52 @@ function EditableText({
   );
 }
 
+// size="lg" es para texto libre y extenso (descripción detallada, explicación
+// técnica): caja alta, sin límite de caracteres (el campo en base es TEXT),
+// buen interlineado y el texto se puede seguir agrandando arrastrando la
+// esquina (resize-y). No se usa text-align:justify a propósito — en texto
+// libre de ancho variable el justificado produce "ríos" de espacio en
+// blanco y empeora la lectura; en su lugar se prioriza interlineado
+// generoso y ancho de línea cómodo.
 function EditableTextarea({
   label,
   value,
   editable,
   onSave,
   required,
+  size = "sm",
 }: {
   label: string;
   value: string;
   editable: boolean;
   onSave: (v: string) => void;
   required?: boolean;
+  size?: "sm" | "lg";
 }) {
+  const isLg = size === "lg";
   return (
-    <div className="bg-panel2 border border-border rounded-lg px-2.5 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-muted mb-1">{label}</div>
+    <div className={isLg ? "bg-panel2 border border-border rounded-lg px-3.5 py-3" : "bg-panel2 border border-border rounded-lg px-2.5 py-2"}>
+      <div className="text-[10px] uppercase tracking-wide text-muted mb-1.5">{label}</div>
       {editable ? (
         <textarea
           defaultValue={value}
-          rows={2}
+          rows={isLg ? 10 : 2}
           onBlur={(e) => {
             if (required && !e.target.value.trim()) return;
             if (e.target.value !== value) onSave(e.target.value);
           }}
-          className="w-full bg-transparent text-sm focus:outline-none resize-y"
+          className={
+            isLg
+              ? "w-full bg-transparent text-sm leading-relaxed focus:outline-none resize-y min-h-[220px]"
+              : "w-full bg-transparent text-sm focus:outline-none resize-y"
+          }
         />
       ) : (
-        <div className={`text-sm whitespace-pre-wrap ${!value ? "text-muted2 italic" : ""}`}>{value || "Sin registrar"}</div>
+        <div
+          className={`whitespace-pre-wrap ${isLg ? "text-sm leading-relaxed" : "text-sm"} ${!value ? "text-muted2 italic" : ""}`}
+        >
+          {value || "Sin registrar"}
+        </div>
       )}
     </div>
   );
