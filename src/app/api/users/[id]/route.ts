@@ -20,16 +20,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!membership) return NextResponse.json({ error: "Esa persona no es parte de este proyecto" }, { status: 404 });
 
   const body = await req.json();
-  const { name, username, password, role, personnelRole, pais } = body as {
+  const { name, username, password, role, personnelRole, pais, active } = body as {
     name?: string;
     username?: string;
     password?: string;
     role?: "ADMIN" | "USER" | "MONITOR";
     personnelRole?: "TECNICO" | "AUDITOR_TI" | "AUDITOR_INVENTARIO" | "COORDINADOR" | "INFRAESTRUCTURA" | null;
     pais?: string | null;
+    active?: boolean;
   };
 
   const userData: Record<string, unknown> = {};
+
+  // Dar de baja / reactivar: solo bloquea el login. Se conservan su
+  // membresia y todas sus asignaciones historicas en tiendas y seguimiento.
+  if (active !== undefined) {
+    if (ctx.userId === params.id && !active) {
+      return NextResponse.json({ error: "No puedes darte de baja a ti mismo" }, { status: 400 });
+    }
+    userData.active = active;
+  }
 
   if (name !== undefined) {
     if (!name.trim()) return NextResponse.json({ error: "El nombre no puede estar vacío" }, { status: 400 });
@@ -82,7 +92,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     data: {
       userId: ctx.userId,
       projectId: ctx.projectId,
-      accion: "USUARIO_EDITADO",
+      accion: active === undefined ? "USUARIO_EDITADO" : active ? "USUARIO_REACTIVADO" : "USUARIO_DADO_DE_BAJA",
       detalle: JSON.stringify({ id: user.id, username: user.username }),
     },
   });

@@ -99,6 +99,13 @@ export default function DashboardNav({
                 </ul>
                 <div className="border-t border-border mt-1.5 pt-1.5">
                   <Link
+                    href="/dashboard/proyectos"
+                    onClick={() => setShowSwitcher(false)}
+                    className="block text-xs px-2 py-1.5 rounded-md text-muted hover:text-text hover:bg-panel transition"
+                  >
+                    Administrar proyectos
+                  </Link>
+                  <Link
                     href="/departamentos"
                     onClick={() => setShowSwitcher(false)}
                     className="block text-xs px-2 py-1.5 rounded-md text-teal hover:bg-panel transition"

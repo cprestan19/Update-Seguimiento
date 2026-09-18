@@ -187,6 +187,25 @@ export default function EquipoPage() {
     load();
   }
 
+  async function toggleBaja(u: PersonRow) {
+    const mensaje = u.active
+      ? `¿Dar de baja a ${u.name}? No podrá volver a entrar, pero se conservan sus tiendas asignadas y todo su historial.`
+      : `¿Reactivar a ${u.name}? Volverá a poder entrar con su usuario y contraseña.`;
+    if (!confirm(mensaje)) return;
+    setError(null);
+    const res = await fetch(`/api/users/${u.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: !u.active }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error || "No se pudo cambiar el estado de esa persona");
+      return;
+    }
+    load();
+  }
+
   const onlineUsers = users.filter((u) => u.online);
 
   return (
@@ -490,15 +509,20 @@ export default function EquipoPage() {
               </div>
             </form>
           ) : (
-            <div key={u.id} className="flex items-center gap-3 px-4 py-3 flex-wrap">
+            <div key={u.id} className={`flex items-center gap-3 px-4 py-3 flex-wrap ${u.active ? "" : "opacity-55"}`}>
               <div className="flex items-center gap-1.5 min-w-[160px]">
-                {u.online && (
+                {u.online && u.active && (
                   <span className="w-1.5 h-1.5 rounded-full bg-teal shrink-0" title="Conectado ahora" />
                 )}
                 <span className="text-sm font-medium">{u.name}</span>
               </div>
               <span className="text-[11px] text-muted min-w-[100px]">@{u.username}</span>
               <div className="flex items-center gap-1.5 flex-wrap">
+                {!u.active && (
+                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-redDim text-red">
+                    De baja
+                  </span>
+                )}
                 {u.personnelRole && (
                   <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-blueDim text-blue">
                     {ROLE_LABEL[u.personnelRole]}
@@ -515,8 +539,23 @@ export default function EquipoPage() {
                 <button onClick={() => startEdit(u)} className="text-muted hover:text-blue" title="Editar">
                   Editar
                 </button>
-                <button onClick={() => quitarDelProyecto(u.id)} className="text-muted hover:text-red" title="Quitar del proyecto">
-                  Quitar del proyecto
+                <button
+                  onClick={() => toggleBaja(u)}
+                  className={u.active ? "text-muted hover:text-amber" : "text-teal hover:underline"}
+                  title={
+                    u.active
+                      ? "Bloquea su acceso pero conserva sus tiendas asignadas y su historial"
+                      : "Vuelve a darle acceso"
+                  }
+                >
+                  {u.active ? "Dar de baja" : "Reactivar"}
+                </button>
+                <button
+                  onClick={() => quitarDelProyecto(u.id)}
+                  className="text-muted2 hover:text-red"
+                  title="Lo saca del proyecto y lo desasigna de sus tiendas (se pierde ese registro)"
+                >
+                  Quitar
                 </button>
               </div>
             </div>

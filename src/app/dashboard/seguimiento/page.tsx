@@ -383,6 +383,11 @@ export default function SeguimientoPage() {
                         className="input !py-1 !text-xs"
                       >
                         <option value="">Sin asignar</option>
+                        {/* Si el responsable ya fue dado de baja no esta en activePeople:
+                            se agrega igual para no perder el registro de quien lo tenia. */}
+                        {it.responsable && !activePeople.some((p) => p.id === it.responsable!.id) && (
+                          <option value={it.responsable.id}>{it.responsable.name} (de baja)</option>
+                        )}
                         {activePeople.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.name}

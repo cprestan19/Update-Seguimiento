@@ -135,13 +135,16 @@ export default function StoreDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store?.id]);
 
+  // Solo personal activo es asignable; a quien esta de baja se le conserva la
+  // asignacion que ya tenia (ver AssignField).
   useEffect(() => {
     fetch("/api/users")
       .then((r) => r.json())
       .then((users: any[]) => {
-        setTecnicos(users.filter((u) => u.personnelRole === "TECNICO"));
-        setAuditoresTI(users.filter((u) => u.personnelRole === "AUDITOR_TI"));
-        setAuditoresInv(users.filter((u) => u.personnelRole === "AUDITOR_INVENTARIO"));
+        const activos = users.filter((u) => u.active);
+        setTecnicos(activos.filter((u) => u.personnelRole === "TECNICO"));
+        setAuditoresTI(activos.filter((u) => u.personnelRole === "AUDITOR_TI"));
+        setAuditoresInv(activos.filter((u) => u.personnelRole === "AUDITOR_INVENTARIO"));
       });
   }, []);
 
@@ -565,6 +568,10 @@ function AssignField({
   editable: boolean;
   onChange: (v: string) => void;
 }) {
+  // Si la persona asignada ya fue dada de baja no viene en options: se agrega
+  // igual para no perder de vista quien hizo el trabajo.
+  const deBaja = value && !options.some((o) => o.id === value.id) ? value : null;
+
   return (
     <div className="bg-panel border border-border rounded-lg px-2.5 py-2">
       <div className="text-[10px] uppercase tracking-wide text-muted mb-1">{label}</div>
@@ -575,6 +582,7 @@ function AssignField({
           className="w-full bg-transparent text-sm focus:outline-none"
         >
           <option value="">Sin asignar</option>
+          {deBaja && <option value={deBaja.id}>{deBaja.name} (de baja)</option>}
           {options.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name}
@@ -582,7 +590,9 @@ function AssignField({
           ))}
         </select>
       ) : (
-        <div className={`text-sm ${!value ? "text-muted2 italic" : ""}`}>{value?.name || "Sin asignar"}</div>
+        <div className={`text-sm ${!value ? "text-muted2 italic" : ""}`}>
+          {value ? `${value.name}${deBaja ? " (de baja)" : ""}` : "Sin asignar"}
+        </div>
       )}
     </div>
   );
