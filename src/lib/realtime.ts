@@ -8,7 +8,7 @@ function getClient() {
   return client;
 }
 
-export type ChangeScope = "stores" | "users" | "seguimiento";
+export type ChangeScope = "stores" | "users" | "seguimiento" | "requerimientos";
 
 // Avisa a los clientes conectados DEL MISMO PROYECTO que algo cambió, para
 // que refresquen esa sección sin esperar a un refresco manual. projectId es

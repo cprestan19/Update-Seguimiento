@@ -59,6 +59,12 @@ model User {
   projectMemberships    ProjectMember[]
   projectsCreated       Project[]           @relation("ProjectCreatedBy")
 
+  requirementsAsLider                  Requirement[]         @relation("RequirementLider")
+  requirementsAsResponsableTecnico     Requirement[]         @relation("RequirementResponsableTecnico")
+  requirementsAsResponsableDependencia Requirement[]         @relation("RequirementResponsableDependencia")
+  requirementsCreated                  Requirement[]         @relation("RequirementCreatedBy")
+  requirementActivities                RequirementActivity[] @relation("RequirementActivityUser")
+
   @@map("users")
 }
 
@@ -106,6 +112,7 @@ model Project {
   seguimientos        SeguimientoItem[]
   auditLogs           AuditLog[]
   usersLastActiveHere User[]              @relation("UserLastActiveProject")
+  requirements        Requirement[]
 
   @@index([departmentId])
   @@map("projects")
@@ -305,4 +312,184 @@ model AuditLog {
 
   @@index([projectId])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Gestion de Requerimientos: modulo general de proyectos tecnologicos
+// (desarrollo, infraestructura, redes, implementaciones, etc.), independiente
+// de Store/Checklist/SeguimientoItem que siguen siendo especificos de la
+// migracion RPro->Prism. Cada Requirement pertenece a un solo Project.
+// ---------------------------------------------------------------------------
+
+enum RequirementTipo {
+  NUEVO_DESARROLLO
+  MEJORA
+  ACTUALIZACION
+}
+
+enum RequirementArea {
+  DESARROLLO
+  IMPLEMENTACION
+  INFRAESTRUCTURA
+  REDES
+  SEGURIDAD
+  INTEGRACION
+  MIGRACION
+  SOPORTE
+  MANTENIMIENTO
+  OTRO
+}
+
+enum RequirementPrioridad {
+  CRITICA
+  ALTA
+  MEDIA
+  BAJA
+}
+
+enum RequirementEstado {
+  SOLICITUD
+  ANALISIS
+  APROBADO
+  EN_DESARROLLO
+  EN_IMPLEMENTACION
+  EN_PRUEBAS
+  EN_PAUSA
+  IMPLEMENTADO
+  CERRADO
+  CANCELADO
+}
+
+enum RequirementImpacto {
+  SIN_IMPACTO
+  BAJO
+  MEDIO
+  ALTO
+  CRITICO
+}
+
+enum RequirementAlcanceAfectados {
+  USUARIO
+  DEPARTAMENTO
+  TIENDA
+  PAIS
+  REGION
+  ORGANIZACION
+}
+
+enum RequirementRiesgo {
+  BAJO
+  MEDIO
+  ALTO
+}
+
+enum RequirementActivityTipo {
+  COMENTARIO
+  ACTIVIDAD
+  CREACION
+  EDICION
+  CAMBIO_ESTADO
+  CAMBIO_RESPONSABLE
+  CAMBIO_PRIORIDAD
+  FECHA_MODIFICADA
+  CIERRE
+  ELIMINACION
+}
+
+model Requirement {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  numero    String // "REQ-2026-00001", unico dentro del proyecto (ver RequirementCounter)
+
+  titulo              String
+  descripcion         String
+  objetivo            String?
+  alcance             String?
+  fueraDeAlcance      String?
+  criteriosAceptacion String?
+
+  // Solicitud: solicitante/gerente suelen ser personas de negocio que nunca
+  // inician sesion en el sistema -> texto libre, no se crea un User falso.
+  solicitadoPorNombre     String
+  departamentoSolicitante String // depto de NEGOCIO que pide el cambio (no es el Department organizativo)
+  gerenteDepartamento     String?
+
+  // Lider de proyecto y responsable tecnico SI son miembros reales del
+  // proyecto -> FK a User, validados con isProjectMember() al escribir.
+  liderProyectoId      String?
+  liderProyecto        User?   @relation("RequirementLider", fields: [liderProyectoId], references: [id], onDelete: SetNull)
+  responsableTecnicoId String?
+  responsableTecnico   User?   @relation("RequirementResponsableTecnico", fields: [responsableTecnicoId], references: [id], onDelete: SetNull)
+  observaciones        String?
+
+  fechaSolicitud       DateTime
+  fechaEstimadaEntrega DateTime
+  fechaRealEntrega     DateTime?
+
+  tipo      RequirementTipo
+  area      RequirementArea
+  prioridad RequirementPrioridad
+  estado    RequirementEstado    @default(SOLICITUD)
+  impacto   RequirementImpacto   @default(SIN_IMPACTO)
+
+  alcanceAfectados        RequirementAlcanceAfectados?
+  alcanceAfectadosDetalle String? // ej. nombre de tienda/depto/usuario cuando alcanceAfectados lo requiere
+
+  bloqueado                Boolean @default(false)
+  motivoBloqueo            String?
+  dependenciaExterna       Boolean @default(false)
+  dependenciaInterna       Boolean @default(false)
+  responsableDependenciaId String?
+  responsableDependencia   User?   @relation("RequirementResponsableDependencia", fields: [responsableDependenciaId], references: [id], onDelete: SetNull)
+
+  riesgo       RequirementRiesgo?
+  motivoRiesgo String?
+
+  camposArea     Json? // campos dinamicos segun 'area' (servidor/IP/VLAN, repositorio/modulo, etc.)
+  implementacion Json? // ambiente, ventana de mantenimiento, plan de rollback, evidencia, dependencias tecnicas
+
+  activo      Boolean   @default(true) // soft delete, nunca se borra fisicamente
+  eliminadoEn DateTime?
+
+  createdById String?
+  createdBy   User?    @relation("RequirementCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  activities RequirementActivity[]
+
+  @@unique([projectId, numero])
+  @@index([projectId])
+  @@index([projectId, estado])
+  @@map("requirements")
+}
+
+// Comentarios manuales Y eventos automaticos de historial en una sola tabla
+// (creacion, cambio de estado/responsable/prioridad, cambio de fecha con
+// motivo, cierre, eliminacion). 'metadata' guarda el antes/despues
+// estructurado (ej. {fechaAnterior, fechaNueva, motivo}).
+model RequirementActivity {
+  id            String                  @id @default(cuid())
+  requirementId String
+  requirement   Requirement             @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  tipo          RequirementActivityTipo
+  descripcion   String
+  metadata      Json?
+  userId        String?
+  user          User?                   @relation("RequirementActivityUser", fields: [userId], references: [id], onDelete: SetNull)
+  createdAt     DateTime                @default(now())
+
+  @@index([requirementId])
+  @@map("requirement_activities")
+}
+
+// Numeracion atomica por proyecto+año, independiente del id interno de Prisma.
+model RequirementCounter {
+  projectId String
+  year      Int
+  seq       Int    @default(0)
+
+  @@id([projectId, year])
+  @@map("requirement_counters")
 }

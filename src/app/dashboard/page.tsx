@@ -608,6 +608,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <div className="order-6 lg:order-5 lg:col-span-2">
+        <RequerimientosWidget />
+      </div>
+
       <FilterSheet
         open={filtersOpen}
         onClose={() => setFiltersOpen(false)}
@@ -1158,5 +1162,142 @@ function FilterSheet({
         </>
       )}
     </AnimatePresence>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Resumen de "Gestión de Requerimientos" en el dashboard del proyecto — bloque
+// aditivo e independiente (fetch propio a /api/requerimientos/summary), no
+// modifica ninguna lógica de tiendas de arriba.
+// ---------------------------------------------------------------------------
+
+const REQ_ATENCION_LABEL: Record<string, string> = {
+  vencido: "Vencido",
+  bloqueado: "Bloqueado",
+  proximo: "Próximo a vencer",
+  sin_responsable: "Sin responsable",
+};
+const REQ_ATENCION_COLOR: Record<string, string> = {
+  vencido: "bg-redDim text-red",
+  bloqueado: "bg-amberDim text-amber",
+  proximo: "bg-amberDim text-amber",
+  sin_responsable: "bg-panel2 text-muted border border-border",
+};
+const REQ_PRIORIDAD_BADGE: Record<string, string> = {
+  CRITICA: "bg-redDim text-red",
+  ALTA: "bg-amberDim text-amber",
+  MEDIA: "bg-blueDim text-blue",
+  BAJA: "bg-panel2 text-muted border border-border",
+};
+const REQ_PRIORIDAD_LABEL: Record<string, string> = {
+  CRITICA: "Crítica",
+  ALTA: "Alta",
+  MEDIA: "Media",
+  BAJA: "Baja",
+};
+
+type RequerimientosSummary = {
+  kpis: {
+    total: number;
+    pendientes: number;
+    enAnalisis: number;
+    enEjecucion: number;
+    enPruebas: number;
+    implementados: number;
+    vencidos: number;
+    proximosAVencer: number;
+  };
+  atencion: {
+    id: string;
+    numero: string;
+    titulo: string;
+    prioridad: string;
+    responsable: string | null;
+    reason: string;
+    slaLabel: string;
+  }[];
+};
+
+function RequerimientosWidget() {
+  const [summary, setSummary] = useState<RequerimientosSummary | null>(null);
+
+  async function load() {
+    const res = await fetch("/api/requerimientos/summary");
+    if (res.ok) setSummary(await res.json());
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  useRealtimeRefresh("requerimientos", load);
+
+  if (!summary) return null;
+
+  const { kpis, atencion } = summary;
+  const shown = atencion.slice(0, 6);
+
+  return (
+    <div className="bg-panel border border-border rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-3.5 flex-wrap gap-2">
+        <h2 className="text-sm font-semibold font-display">Gestión de Requerimientos</h2>
+        <Link href="/dashboard/requerimientos" className="text-xs text-teal hover:underline">
+          Ver todos →
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-4">
+        <ReqKpi label="Total" value={kpis.total} />
+        <ReqKpi label="Pendientes" value={kpis.pendientes} color="text-muted" />
+        <ReqKpi label="En ejecución" value={kpis.enEjecucion} color="text-blue" />
+        <ReqKpi label="Implementados" value={kpis.implementados} color="text-teal" />
+        <ReqKpi label="En análisis" value={kpis.enAnalisis} color="text-blue" />
+        <ReqKpi label="En pruebas" value={kpis.enPruebas} color="text-amber" />
+        <ReqKpi label="Vencidos" value={kpis.vencidos} color="text-red" />
+        <ReqKpi label="Próx. a vencer" value={kpis.proximosAVencer} color="text-amber" />
+      </div>
+
+      <div className="border-t border-border pt-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-muted uppercase tracking-wide">Requiere atención</span>
+          {atencion.length > 0 && <span className="text-[11px] text-muted">{atencion.length} caso{atencion.length === 1 ? "" : "s"}</span>}
+        </div>
+        {atencion.length === 0 ? (
+          <p className="text-sm text-teal">Todo en orden — sin requerimientos que requieran atención.</p>
+        ) : (
+          <div className="space-y-1">
+            {shown.map((r) => (
+              <Link
+                key={r.id}
+                href={`/dashboard/requerimientos/${r.id}`}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#151C27] active:bg-[#151C27] active:scale-[0.99] transition"
+              >
+                <span className={`shrink-0 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full font-semibold ${REQ_ATENCION_COLOR[r.reason]}`}>
+                  {REQ_ATENCION_LABEL[r.reason]}
+                </span>
+                <span className="font-mono text-xs text-muted shrink-0">{r.numero}</span>
+                <span className="text-sm font-medium truncate">{r.titulo}</span>
+                <span className={`shrink-0 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full font-semibold hidden sm:inline-flex ${REQ_PRIORIDAD_BADGE[r.prioridad]}`}>
+                  {REQ_PRIORIDAD_LABEL[r.prioridad]}
+                </span>
+                <span className="ml-auto text-muted text-xs shrink-0">→</span>
+              </Link>
+            ))}
+            {atencion.length > shown.length && (
+              <p className="text-[11px] text-muted2 pt-1.5 px-2.5">+{atencion.length - shown.length} más con atención pendiente</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReqKpi({ label, value, color }: { label: string; value: number; color?: string }) {
+  return (
+    <div className="bg-panel2 border border-border rounded-xl px-3 py-3">
+      <div className={`font-display text-lg leading-none font-semibold ${color || ""}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wide text-muted mt-1">{label}</div>
+    </div>
   );
 }
