@@ -329,11 +329,23 @@ export default function SeguimientoPage() {
                 prev.size === grouped.length ? new Set() : new Set(grouped.map(([r]) => r))
               )
             }
-            className="text-xs text-muted hover:text-text ml-auto"
+            className="text-xs text-muted hover:text-text"
           >
             {expandedRegions.size === grouped.length ? "Colapsar todo" : "Expandir todo"}
           </button>
         )}
+        <a
+          href="/api/reports/seguimiento/excel"
+          className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-teal hover:border-teal/40 transition ml-auto"
+        >
+          Excel
+        </a>
+        <a
+          href="/api/reports/seguimiento/pdf"
+          className="bg-panel border border-border rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:text-red hover:border-red/40 transition"
+        >
+          PDF
+        </a>
       </div>
 
       {grouped.length === 0 && (
