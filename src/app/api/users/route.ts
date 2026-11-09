@@ -80,6 +80,16 @@ export async function POST(req: Request) {
     );
   }
 
+  if (role && !["ADMIN", "USER", "MONITOR"].includes(role)) {
+    return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
+  }
+  if (
+    personnelRole &&
+    !["TECNICO", "AUDITOR_TI", "AUDITOR_INVENTARIO", "COORDINADOR", "INFRAESTRUCTURA"].includes(personnelRole)
+  ) {
+    return NextResponse.json({ error: "Rol funcional inválido" }, { status: 400 });
+  }
+
   const existing = await prisma.user.findUnique({ where: { username: username.trim() } });
   if (existing) {
     return NextResponse.json(

@@ -65,6 +65,9 @@ model User {
   requirementsCreated                  Requirement[]         @relation("RequirementCreatedBy")
   requirementActivities                RequirementActivity[] @relation("RequirementActivityUser")
 
+  guardianTargetsCreated GuardianTarget[] @relation("GuardianTargetCreatedBy")
+  guardianScansStarted   GuardianScan[]   @relation("GuardianScanStartedBy")
+
   @@map("users")
 }
 
@@ -113,6 +116,7 @@ model Project {
   auditLogs           AuditLog[]
   usersLastActiveHere User[]              @relation("UserLastActiveProject")
   requirements        Requirement[]
+  guardianTargets     GuardianTarget[]
 
   @@index([departmentId])
   @@map("projects")
@@ -497,4 +501,150 @@ model RequirementCounter {
 
   @@id([projectId, year])
   @@map("requirement_counters")
+}
+
+// ===========================================================================
+// GUARDIAN TOOLSIT: auditoría de seguridad / pentest de aplicativos.
+//
+// Un GuardianTarget es un objetivo a auditar (un repositorio de código o una
+// URL de una app web/SaaS). Pertenece a un Project de ToolsIT (aislamiento
+// multi-tenant). Antes de cualquier prueba que vaya más allá de leer la
+// portada pública, un objetivo de tipo URL debe estar VERIFICADO (prueba de
+// propiedad por DNS o archivo well-known) o tener una autorización firmada
+// registrada — así Guardian solo audita sistemas que su dueño autorizó.
+// ===========================================================================
+
+enum GuardianTargetType {
+  URL  // aplicación web / SaaS en vivo
+  REPO // repositorio de código (análisis estático)
+}
+
+enum GuardianVerificationStatus {
+  UNVERIFIED // no se puede probar más que la portada pública
+  PENDING    // token emitido, esperando comprobación
+  VERIFIED   // propiedad comprobada
+  AUTHORIZED // sin verificación técnica, pero con autorización escrita registrada
+}
+
+enum GuardianScanProfile {
+  SAFE // no intrusivo: cabeceras/TLS/cookies de la portada, análisis de código
+  FULL // añade sondas de exposición y más rutas; requiere objetivo verificado/autorizado
+}
+
+enum GuardianScanType {
+  URL_HEADERS   // cabeceras de seguridad, TLS, cookies
+  URL_EXPOSURE  // archivos/rutas sensibles expuestos (.env, .git, backups)
+  REPO_DEPS     // dependencias vulnerables (package.json / lockfile)
+  REPO_SECRETS  // secretos hardcodeados
+  REPO_SAST     // patrones de código inseguro
+  REPO_CONFIG   // configuración insegura
+}
+
+enum GuardianScanStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum GuardianSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum GuardianFindingStatus {
+  OPEN
+  CONFIRMED
+  FALSE_POSITIVE
+  FIXED
+  ACCEPTED_RISK
+}
+
+model GuardianTarget {
+  id          String             @id @default(cuid())
+  projectId   String
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  type        GuardianTargetType
+  // URL base (type URL) o URL del repositorio (type REPO)
+  url         String
+  description String?
+
+  // Propiedad / autorización
+  verification       GuardianVerificationStatus @default(UNVERIFIED)
+  verificationToken  String? // token que el dueño debe publicar (DNS TXT o /.well-known)
+  verifiedAt         DateTime?
+  authorizedByName   String? // quién firmó la autorización (cuando es AUTHORIZED)
+  authorizationNote  String?
+  // Lista blanca de rutas/subdominios permitidos y tope de peticiones por minuto
+  allowedPaths       String[] @default([])
+  rateLimitPerMin    Int      @default(60)
+
+  createdById String?
+  createdBy   User?    @relation("GuardianTargetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  scans GuardianScan[]
+
+  @@index([projectId])
+  @@map("guardian_targets")
+}
+
+model GuardianScan {
+  id         String             @id @default(cuid())
+  targetId   String
+  target     GuardianTarget     @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  profile    GuardianScanProfile @default(SAFE)
+  types      GuardianScanType[]
+  status     GuardianScanStatus  @default(QUEUED)
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  error      String?
+
+  // Conteos rápidos para listar sin cargar todos los hallazgos
+  countCritical Int @default(0)
+  countHigh     Int @default(0)
+  countMedium   Int @default(0)
+  countLow      Int @default(0)
+  countInfo     Int @default(0)
+
+  startedById String?
+  startedBy   User?    @relation("GuardianScanStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  findings GuardianFinding[]
+
+  @@index([targetId])
+  @@map("guardian_scans")
+}
+
+model GuardianFinding {
+  id       String           @id @default(cuid())
+  scanId   String
+  scan     GuardianScan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  type     GuardianScanType
+  severity GuardianSeverity
+  status   GuardianFindingStatus @default(OPEN)
+
+  title       String
+  description String
+  // Dónde: URL, archivo:línea, nombre de dependencia, etc.
+  location    String?
+  // Evidencia textual (recortada / saneada, nunca el secreto completo)
+  evidence    String?
+  recommendation String?
+  // Referencias: CWE, OWASP, advisory
+  cwe   String?
+  owasp String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scanId])
+  @@map("guardian_findings")
 }

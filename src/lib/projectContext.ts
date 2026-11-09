@@ -19,6 +19,7 @@ export type ProjectContext = {
   personnelRole: PersonnelRole | null;
   pais: string | null;
   isMigrationProject: boolean;
+  isSuperAdmin: boolean;
 };
 
 // Resuelve, en cada request, a qué proyecto pertenece la sesión actual y con
@@ -30,7 +31,7 @@ export async function getProjectContext(): Promise<ProjectContext | null> {
   const userId = session?.user?.id;
   if (!userId) return null;
 
-  const projectId = cookies().get(ACTIVE_PROJECT_COOKIE)?.value;
+  const projectId = (await cookies()).get(ACTIVE_PROJECT_COOKIE)?.value;
   if (!projectId) return null;
 
   const member = await prisma.projectMember.findUnique({
@@ -47,6 +48,7 @@ export async function getProjectContext(): Promise<ProjectContext | null> {
     personnelRole: member.personnelRole,
     pais: member.pais,
     isMigrationProject: member.project.slug === MIGRATION_PROJECT_SLUG,
+    isSuperAdmin: Boolean((session.user as unknown as { isSuperAdmin?: boolean }).isSuperAdmin),
   };
 }
 
@@ -58,4 +60,32 @@ export async function isProjectMember(projectId: string, userId: string): Promis
     select: { id: true },
   });
   return Boolean(member);
+}
+
+// Decide si `actor` puede modificar los datos GLOBALES de la cuenta de
+// `targetUserId` (usuario, contraseña, activo/inactivo). Esos datos afectan a
+// todos los proyectos y departamentos donde esa persona participa, así que un
+// ADMIN de un proyecto solo puede tocarlos si administra TODOS los proyectos
+// de esa persona. Nadie salvo un super admin puede tocar a un super admin.
+export async function canManageGlobalAccount(
+  actor: { userId: string; isSuperAdmin: boolean },
+  targetUserId: string
+): Promise<boolean> {
+  if (actor.isSuperAdmin) return true;
+
+  const target = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { isSuperAdmin: true, projectMemberships: { select: { projectId: true } } },
+  });
+  if (!target || target.isSuperAdmin) return false;
+  if (target.projectMemberships.length === 0) return false;
+
+  const adminOf = await prisma.projectMember.count({
+    where: {
+      userId: actor.userId,
+      role: "ADMIN",
+      projectId: { in: target.projectMemberships.map((m) => m.projectId) },
+    },
+  });
+  return adminOf === target.projectMemberships.length;
 }

@@ -2,6 +2,10 @@ import Redis from "ioredis";
 import { CHANNEL } from "@/lib/realtime";
 import { getProjectContext } from "@/lib/projectContext";
 
+// Stream SSE de larga duración: nunca debe cachearse ni prerenderizarse.
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
 // Canal de tiempo real vía Server-Sent Events: cada cliente conectado se
 // suscribe al mismo canal de Redis (Upstash) y reenvía por SSE cualquier
 // aviso de cambio DE SU PROPIO PROYECTO. Necesario porque cada instancia de

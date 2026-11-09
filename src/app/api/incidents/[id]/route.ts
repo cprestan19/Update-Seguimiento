@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { publishChange } from "@/lib/realtime";
 import { getProjectContext } from "@/lib/projectContext";
+import { recalcularEstadoTienda } from "@/lib/storeStatus";
 
 export async function PATCH(_req: Request, { params }: { params: { id: string } }) {
   const ctx = await getProjectContext();
@@ -25,11 +26,9 @@ export async function PATCH(_req: Request, { params }: { params: { id: string } 
   });
 
   if (abiertas === 0) {
-    const items = await prisma.storeChecklistItem.findMany({ where: { storeId: incident.storeId } });
-    const total = items.length;
-    const done = items.filter((i) => i.completado).length;
-    const estado = done === 0 ? "PENDIENTE" : done < total ? "EN_PROGRESO" : "COMPLETADA";
-    await prisma.store.update({ where: { id: incident.storeId }, data: { estado } });
+    // Reusar la lógica central: excluye ítems "no aplica" y mantiene las
+    // marcas de tiempo (inicioReal/finReal/duración) coherentes.
+    await recalcularEstadoTienda(incident.storeId);
   }
   await publishChange("stores", ctx.projectId);
 

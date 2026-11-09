@@ -20,9 +20,31 @@ export async function POST(req: Request) {
 
   if (!userId) return NextResponse.json({ error: "Falta la persona a agregar" }, { status: 400 });
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user || !user.active) {
-    return NextResponse.json({ error: "Esa persona no existe o está inactiva" }, { status: 404 });
+  const ROLES = ["ADMIN", "USER", "MONITOR"];
+  if (role !== undefined && !ROLES.includes(role)) {
+    return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
+  }
+
+  // Solo personas que ya pertenecen a algún proyecto del mismo departamento
+  // (coherente con /api/users/search) — no cualquier userId de la organización.
+  const project = await prisma.project.findUnique({
+    where: { id: ctx.projectId },
+    select: { departmentId: true },
+  });
+  if (!project) return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
+
+  const user = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      active: true,
+      projectMemberships: { some: { project: { departmentId: project.departmentId } } },
+    },
+  });
+  if (!user) {
+    return NextResponse.json(
+      { error: "Esa persona no existe, está inactiva o no pertenece a este departamento" },
+      { status: 404 }
+    );
   }
 
   const existing = await prisma.projectMember.findUnique({
