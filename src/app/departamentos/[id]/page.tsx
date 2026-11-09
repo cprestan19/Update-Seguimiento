@@ -57,7 +57,9 @@ export default function DepartamentoPage() {
       setUnlocking(false);
       return;
     }
-    await update({ deptAdminId: id });
+    const { unlockToken } = (await res.json()) as { unlockToken?: string };
+    await update({ deptUnlockToken: unlockToken });
+    setPassword("");
     setUnlocking(false);
   }
 

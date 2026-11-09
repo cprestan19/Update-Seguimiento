@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No perteneces a ese proyecto" }, { status: 403 });
   }
 
-  cookies().set(ACTIVE_PROJECT_COOKIE, projectId, {
+  (await cookies()).set(ACTIVE_PROJECT_COOKIE, projectId, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",

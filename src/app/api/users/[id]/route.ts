@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { publishChange } from "@/lib/realtime";
-import { getProjectContext } from "@/lib/projectContext";
+import { canManageGlobalAccount, getProjectContext } from "@/lib/projectContext";
+
+const ROLES = ["ADMIN", "USER", "MONITOR"] as const;
+const PERSONNEL_ROLES = ["TECNICO", "AUDITOR_TI", "AUDITOR_INVENTARIO", "COORDINADOR", "INFRAESTRUCTURA"] as const;
 
 // Edita datos de una persona del proyecto activo (nombre/usuario/contraseña
 // son globales del login; rol/rol funcional/país son propios de este
@@ -31,6 +34,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   };
 
   const userData: Record<string, unknown> = {};
+
+  // Los campos de la CUENTA GLOBAL (nombre de usuario, contraseña, activo)
+  // afectan a todos los proyectos de esa persona. Un ADMIN de este proyecto
+  // solo puede tocarlos si administra TODOS sus proyectos, y nadie salvo un
+  // super admin puede tocar a un super admin — ver canManageGlobalAccount.
+  const tocaCuentaGlobal =
+    username !== undefined || (password !== undefined && password) || active !== undefined;
+  if (tocaCuentaGlobal) {
+    const permitido = await canManageGlobalAccount(
+      { userId: ctx.userId, isSuperAdmin: ctx.isSuperAdmin },
+      params.id
+    );
+    if (!permitido) {
+      return NextResponse.json(
+        { error: "No puedes modificar la cuenta global de esta persona (usuario, contraseña o estado)" },
+        { status: 403 }
+      );
+    }
+  }
 
   // Dar de baja / reactivar: solo bloquea el login. Se conservan su
   // membresia y todas sus asignaciones historicas en tiendas y seguimiento.
@@ -64,12 +86,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const memberData: Record<string, unknown> = {};
   if (role !== undefined) {
+    if (!ROLES.includes(role as (typeof ROLES)[number])) {
+      return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
+    }
     if (ctx.userId === params.id && role !== "ADMIN") {
       return NextResponse.json({ error: "No puedes quitarte tu propio rol de administrador" }, { status: 400 });
     }
     memberData.role = role;
   }
-  if (personnelRole !== undefined) memberData.personnelRole = personnelRole || null;
+  if (personnelRole !== undefined) {
+    if (personnelRole && !PERSONNEL_ROLES.includes(personnelRole as (typeof PERSONNEL_ROLES)[number])) {
+      return NextResponse.json({ error: "Rol funcional inválido" }, { status: 400 });
+    }
+    memberData.personnelRole = personnelRole || null;
+  }
   if (pais !== undefined) memberData.pais = pais || null;
 
   const [user] = await prisma.$transaction([

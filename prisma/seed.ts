@@ -6,6 +6,7 @@
  *
  * Ejecutar con: npx prisma db seed   (o) npm run prisma:seed
  */
+import { randomBytes } from "crypto";
 import { PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { ensureDefaultChecklistCatalog, instantiateChecklistForStore } from "../src/lib/storeChecklist";
@@ -16,7 +17,16 @@ const PROJECT_NAME = "Migración RPro → Prism 2.4";
 const PROJECT_SLUG = "rpro-prism";
 const DEPARTMENT_NAME = "Migración RPro";
 const DEPARTMENT_SLUG = "migracion-rpro";
-const DEPARTMENT_DEFAULT_PASSWORD = "Departamento123!";
+
+// Las contraseñas iniciales NO se escriben en el código (el repositorio puede
+// ser público). Se leen de variables de entorno; si faltan, se genera una
+// aleatoria que se imprime una sola vez en consola. Cámbiala al primer ingreso.
+function resolvePassword(envVar: string): string {
+  const fromEnv = process.env[envVar];
+  if (fromEnv && fromEnv.length >= 8) return fromEnv;
+  return randomBytes(9).toString("base64url");
+}
+const DEPARTMENT_DEFAULT_PASSWORD = resolvePassword("SEED_DEPARTMENT_PASSWORD");
 
 // -----------------------------------------------------------------------
 // Datos reales extraidos de plan_de_migracion.xlsx (hoja "Hoja1")
@@ -110,7 +120,7 @@ async function main() {
   await ensureDefaultChecklistCatalog(project.id);
 
   console.log("Creando usuario administrador por defecto...");
-  const defaultPassword = "Admin123!";
+  const defaultPassword = resolvePassword("SEED_ADMIN_PASSWORD");
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
   const admin = await prisma.user.upsert({
     where: { username: "admin" },

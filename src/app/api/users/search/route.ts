@@ -15,6 +15,15 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams.get("q")?.trim() || "";
   if (q.length < 2) return NextResponse.json([]);
 
+  // Solo se pueden buscar/adjuntar personas que ya pertenecen a algún proyecto
+  // del MISMO departamento — no de toda la organización. Evita enumerar
+  // usuarios de otros departamentos desde cualquier proyecto.
+  const project = await prisma.project.findUnique({
+    where: { id: ctx.projectId },
+    select: { departmentId: true },
+  });
+  if (!project) return NextResponse.json([]);
+
   const yaMiembros = await prisma.projectMember.findMany({
     where: { projectId: ctx.projectId },
     select: { userId: true },
@@ -25,6 +34,7 @@ export async function GET(req: Request) {
     where: {
       active: true,
       id: { notIn: excluidos },
+      projectMemberships: { some: { project: { departmentId: project.departmentId } } },
       OR: [
         { name: { contains: q, mode: "insensitive" } },
         { username: { contains: q, mode: "insensitive" } },
