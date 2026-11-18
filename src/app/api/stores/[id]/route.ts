@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { publishChange } from "@/lib/realtime";
 import { getProjectContext, isProjectMember } from "@/lib/projectContext";
+import { instantiateChecklistForStore } from "@/lib/storeChecklist";
+import { recalcularEstadoTienda } from "@/lib/storeStatus";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const ctx = await getProjectContext();
@@ -134,6 +136,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const store = await prisma.store.update({ where: { id: params.id }, data });
+  // Al cambiar de región recibe los criterios de la región nueva (los ya
+  // existentes se conservan, con lo que tengan marcado).
+  if (data.region !== undefined && data.region !== existente.region) {
+    await instantiateChecklistForStore(store.id, ctx.projectId);
+    await recalcularEstadoTienda(store.id);
+  }
   await publishChange("stores", ctx.projectId);
 
   await prisma.auditLog.create({

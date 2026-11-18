@@ -179,6 +179,7 @@ model Store {
   costoFinal        Float?
 
   checklist         StoreChecklistItem[]
+  customChecklist   ChecklistItemDef[]
   incidents         Incident[]
   seguimientos      SeguimientoItem[]
 
@@ -213,8 +214,19 @@ model ChecklistItemDef {
   category    ChecklistCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   nombre      String
   orden       Int
+  // Alcance del criterio:
+  //   storeId con valor        -> solo esa tienda/categoría
+  //   region con valor         -> todas las tiendas de esa región (actuales y futuras)
+  //   ambos null               -> plantilla del proyecto (todas las tiendas)
+  storeId     String?
+  store       Store?              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  region      String?
+  // CHECK = casilla; DATO = campo de texto que cuenta como completado al
+  // llenarse; NOTA = comentario libre que nunca bloquea el progreso.
+  tipo        String              @default("CHECK")
   storeItems  StoreChecklistItem[]
 
+  @@index([storeId])
   @@map("checklist_item_defs")
 }
 
@@ -229,6 +241,7 @@ model StoreChecklistItem {
   completadoPor   User?             @relation("ChecklistCompletedBy", fields: [completadoPorId], references: [id])
   completadoEn    DateTime?
   noAplica        Boolean           @default(false)
+  valor           String?           // respuesta de criterios tipo DATO / NOTA
 
   @@unique([storeId, itemDefId])
   @@map("store_checklist_items")

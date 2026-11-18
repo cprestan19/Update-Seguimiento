@@ -18,8 +18,12 @@ export async function POST(req: Request) {
 
   const current = await prisma.storeChecklistItem.findFirst({
     where: { id: storeChecklistItemId, store: { projectId: ctx.projectId } },
+    include: { itemDef: { select: { tipo: true } } },
   });
   if (!current) return NextResponse.json({ error: "Item no encontrado" }, { status: 404 });
+  if (current.itemDef.tipo !== "CHECK") {
+    return NextResponse.json({ error: "Este criterio se completa escribiendo su valor" }, { status: 400 });
+  }
   if (current.noAplica) {
     return NextResponse.json({ error: "Este item está marcado como no aplica" }, { status: 400 });
   }

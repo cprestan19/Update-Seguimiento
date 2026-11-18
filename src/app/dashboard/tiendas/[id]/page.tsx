@@ -13,7 +13,16 @@ type ChecklistRow = {
   noAplica: boolean;
   completadoPor: { name: string } | null;
   completadoEn: string | null;
-  itemDef: { nombre: string; category: { nombre: string; orden: number } };
+  valor: string | null;
+  itemDef: {
+    id: string;
+    nombre: string;
+    orden: number;
+    tipo: "CHECK" | "DATO" | "NOTA";
+    storeId: string | null;
+    region: string | null;
+    category: { nombre: string; orden: number };
+  };
 };
 
 type Incident = {
@@ -212,6 +221,42 @@ export default function StoreDetailPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ storeChecklistItemId }),
+    });
+    load();
+  }
+
+  async function saveValor(storeChecklistItemId: string, valor: string) {
+    await fetch("/api/checklist/items", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeChecklistItemId, valor }),
+    });
+    load();
+  }
+
+  async function renameCriterio(it: ChecklistRow) {
+    const compartido = !it.itemDef.storeId;
+    const nombre = prompt(
+      compartido
+        ? "Nuevo nombre (este criterio es compartido: se cambia en todas las tiendas que lo tienen):"
+        : "Nuevo nombre del criterio:",
+      it.itemDef.nombre
+    );
+    if (!nombre || nombre.trim() === it.itemDef.nombre) return;
+    await fetch(`/api/checklist/defs/${it.itemDef.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre }),
+    });
+    load();
+  }
+
+  async function deleteCriterio(it: ChecklistRow) {
+    if (!confirm(`¿Quitar el criterio "${it.itemDef.nombre}" de esta categoría?`)) return;
+    await fetch("/api/checklist/items", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeChecklistItemId: it.id }),
     });
     load();
   }
@@ -494,7 +539,9 @@ export default function StoreDetailPage() {
       </div>
 
       {categories.map(([catName]) => {
-        const items = store.checklist.filter((c) => c.itemDef.category.nombre === catName);
+        const items = store.checklist
+          .filter((c) => c.itemDef.category.nombre === catName)
+          .sort((a, b) => a.itemDef.orden - b.itemDef.orden);
         const catAplicables = items.filter((i) => !i.noAplica);
         const catDone = catAplicables.filter((i) => i.completado).length;
         return (
@@ -505,7 +552,18 @@ export default function StoreDetailPage() {
                 {catDone}/{catAplicables.length}
               </span>
             </div>
-            {items.map((it) => (
+            {items.map((it) =>
+              it.itemDef.tipo !== "CHECK" ? (
+                <ValorRow
+                  key={it.id}
+                  item={it}
+                  editable={!isMonitor}
+                  isAdmin={isAdmin}
+                  onSave={(v) => saveValor(it.id, v)}
+                  onDelete={() => deleteCriterio(it)}
+                  onRename={() => renameCriterio(it)}
+                />
+              ) : (
               <div
                 key={it.id}
                 className={`flex items-center gap-2.5 py-1.5 px-1 rounded ${
@@ -544,11 +602,28 @@ export default function StoreDetailPage() {
                     No aplica
                   </button>
                 )}
+                {isAdmin && (
+                  <CriterioAdminButtons
+                    item={it}
+                    onRename={() => renameCriterio(it)}
+                    onDelete={() => deleteCriterio(it)}
+                  />
+                )}
               </div>
-            ))}
+              )
+            )}
           </div>
         );
       })}
+
+      {isAdmin && (
+        <AddCriterioForm
+          storeId={store.id}
+          region={store.region}
+          secciones={categories.map(([n]) => n)}
+          onAdded={load}
+        />
+      )}
 
       <div className="mt-6 border-t border-border pt-4">
         <h3 className="text-xs uppercase tracking-wide text-muted mb-2.5">Incidencias</h3>
@@ -604,6 +679,235 @@ export default function StoreDetailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Etiqueta de alcance + botones de renombrar / quitar de esta tienda (ADMIN).
+function CriterioAdminButtons({
+  item,
+  onRename,
+  onDelete,
+}: {
+  item: ChecklistRow;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  const { storeId, region } = item.itemDef;
+  const alcance = storeId ? "Solo aquí" : region ? `Región` : null;
+  return (
+    <>
+      {alcance && (
+        <span
+          className="shrink-0 text-[9px] uppercase tracking-wide text-muted2 border border-border rounded-full px-1.5 py-0.5"
+          title={storeId ? "Criterio propio de esta categoría" : `Criterio de la región ${region}`}
+        >
+          {alcance}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={onRename}
+        className="shrink-0 text-muted2 hover:text-blue text-sm leading-none px-1"
+        title="Renombrar criterio"
+        aria-label="Renombrar criterio"
+      >
+        ✎
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="shrink-0 text-muted2 hover:text-red text-sm leading-none px-1"
+        title="Quitar este criterio de esta categoría"
+        aria-label="Quitar criterio"
+      >
+        ✕
+      </button>
+    </>
+  );
+}
+
+// Criterio tipo DATO (campo corto, cuenta como completado al llenarse) o
+// NOTA (comentario libre, no afecta el progreso). Guarda al salir del campo.
+function ValorRow({
+  item,
+  editable,
+  isAdmin,
+  onSave,
+  onDelete,
+  onRename,
+}: {
+  item: ChecklistRow;
+  editable: boolean;
+  isAdmin: boolean;
+  onSave: (v: string) => void;
+  onDelete: () => void;
+  onRename: () => void;
+}) {
+  const [value, setValue] = useState(item.valor || "");
+  useEffect(() => setValue(item.valor || ""), [item.valor]);
+  const isNota = item.itemDef.tipo === "NOTA";
+  const dirty = value.trim() !== (item.valor || "");
+  const save = () => dirty && onSave(value);
+
+  return (
+    <div className="py-1.5 px-1">
+      <div className="flex items-center gap-2.5 mb-1">
+        {!isNota && (
+          <span
+            className={`w-[18px] h-[18px] shrink-0 rounded border flex items-center justify-center text-[11px] ${
+              item.completado ? "bg-teal/20 border-teal text-teal" : "border-border"
+            }`}
+            title={item.completado ? "Completado" : "Pendiente: escribe el dato"}
+          >
+            {item.completado ? "✓" : ""}
+          </span>
+        )}
+        <span className="text-sm flex-1">{item.itemDef.nombre}</span>
+        {item.completadoPor && item.valor && (
+          <span className="text-[10px] text-muted2">{item.completadoPor.name}</span>
+        )}
+        {isAdmin && <CriterioAdminButtons item={item} onRename={onRename} onDelete={onDelete} />}
+      </div>
+      {isNota ? (
+        <textarea
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={save}
+          disabled={!editable}
+          rows={3}
+          placeholder={editable ? "Escribe aquí..." : "Sin comentarios"}
+          className="w-full bg-panel2 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue disabled:opacity-70"
+        />
+      ) : (
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+          disabled={!editable}
+          placeholder={editable ? "Escribe el dato y presiona Enter" : "Sin dato"}
+          className="w-full bg-panel2 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue disabled:opacity-70"
+        />
+      )}
+      {dirty && editable && <p className="text-[10px] text-amber mt-0.5">Sin guardar: sal del campo para guardar</p>}
+    </div>
+  );
+}
+
+const NUEVA_SECCION = "__nueva__";
+
+function AddCriterioForm({
+  storeId,
+  region,
+  secciones,
+  onAdded,
+}: {
+  storeId: string;
+  region: string;
+  secciones: string[];
+  onAdded: () => void;
+}) {
+  const [alcance, setAlcance] = useState<"STORE" | "REGION" | "PROJECT">("STORE");
+  const [nombre, setNombre] = useState("");
+  const [seccion, setSeccion] = useState(secciones[secciones.length - 1] || NUEVA_SECCION);
+  const [nuevaSeccion, setNuevaSeccion] = useState("");
+  const [tipo, setTipo] = useState<"CHECK" | "DATO" | "NOTA">("CHECK");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const seccionFinal = seccion === NUEVA_SECCION ? nuevaSeccion.trim() : seccion;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!nombre.trim() || !seccionFinal) {
+      setError("Escribe el criterio y la sección");
+      return;
+    }
+    setSaving(true);
+    const res = await fetch("/api/checklist/items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeId, nombre, seccion: seccionFinal, tipo, alcance }),
+    });
+    setSaving(false);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data.error || "No se pudo agregar el criterio");
+      return;
+    }
+    setInfo(alcance === "STORE" ? null : `Agregado a ${data.tiendas} tiendas.`);
+    setNombre("");
+    if (seccion === NUEVA_SECCION) {
+      setSeccion(seccionFinal);
+      setNuevaSeccion("");
+    }
+    onAdded();
+  }
+
+  const inputCls =
+    "bg-panel2 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue";
+
+  return (
+    <form onSubmit={submit} className="mt-2 mb-4 bg-panel border border-border rounded-xl p-3">
+      <h3 className="text-xs font-semibold font-display mb-2">+ Agregar criterio</h3>
+      <div className="flex gap-2 flex-wrap">
+        <input
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Ej. Verificación de antenas de robo"
+          className={`${inputCls} flex-1 min-w-[200px]`}
+        />
+        <select value={seccion} onChange={(e) => setSeccion(e.target.value)} className={inputCls}>
+          {secciones.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+          <option value={NUEVA_SECCION}>Nueva sección…</option>
+        </select>
+        {seccion === NUEVA_SECCION && (
+          <input
+            value={nuevaSeccion}
+            onChange={(e) => setNuevaSeccion(e.target.value)}
+            placeholder="Nombre de la sección"
+            className={`${inputCls} min-w-[160px]`}
+          />
+        )}
+        <select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value as "CHECK" | "DATO" | "NOTA")}
+          className={inputCls}
+        >
+          <option value="CHECK">Casilla (check)</option>
+          <option value="DATO">Dato (campo de texto)</option>
+          <option value="NOTA">Comentario libre</option>
+        </select>
+        <select
+          value={alcance}
+          onChange={(e) => setAlcance(e.target.value as "STORE" | "REGION" | "PROJECT")}
+          className={inputCls}
+        >
+          <option value="STORE">Solo esta categoría</option>
+          <option value="REGION">Toda la región: {region}</option>
+          <option value="PROJECT">Todas las categorías del proyecto</option>
+        </select>
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-tealDim text-teal border border-teal/30 rounded-lg px-4 py-2 text-sm font-semibold hover:bg-teal/20 disabled:opacity-50"
+        >
+          {saving ? "Agregando..." : "Agregar"}
+        </button>
+      </div>
+      <p className="text-[10px] text-muted2 mt-1.5">
+        Región y proyecto también aplican a las categorías que se creen después. Un “Dato” cuenta como completado
+        cuando se llena; un comentario no afecta el progreso.
+      </p>
+      {info && <p className="text-xs text-teal mt-1.5">{info}</p>}
+      {error && <p className="text-xs text-red mt-1.5">{error}</p>}
+    </form>
   );
 }
 

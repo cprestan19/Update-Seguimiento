@@ -136,6 +136,11 @@ export default function DashboardNav({
               Equipo
             </Link>
           )}
+          {role === "ADMIN" && (
+            <Link href="/dashboard/checklist" className={linkClass("/dashboard/checklist")}>
+              Checklist
+            </Link>
+          )}
           <Link href="/departamentos" className={linkClass("/departamentos")}>
             Departamentos
           </Link>

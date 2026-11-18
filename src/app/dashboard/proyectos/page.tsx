@@ -11,6 +11,7 @@ export default function ProyectosPage() {
   const isAdmin = role === "ADMIN";
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [newName, setNewName] = useState("");
+  const [plantilla, setPlantilla] = useState<string>(activeProjectId || "default");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const newNameRef = useRef<HTMLInputElement>(null);
@@ -31,7 +32,7 @@ export default function ProyectosPage() {
     const res = await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName }),
+      body: JSON.stringify({ name: newName, plantilla }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -188,6 +189,24 @@ export default function ProyectosPage() {
               {creating ? "Creando..." : "Crear"}
             </button>
           </div>
+          <label className="block text-[10px] uppercase tracking-wide text-muted mt-3 mb-1">
+            Checklist del proyecto nuevo
+          </label>
+          <select
+            value={plantilla}
+            onChange={(e) => setPlantilla(e.target.value)}
+            className="w-full bg-panel2 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue"
+          >
+            {projects
+              .filter((p) => p.role === "ADMIN")
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  Copiar criterios de: {p.name}
+                </option>
+              ))}
+            <option value="default">Plantilla por defecto</option>
+            <option value="none">Sin criterios (los agrego después)</option>
+          </select>
           <p className="text-[11px] text-muted mt-2">
             Se crea en el mismo departamento que el proyecto activo. Para crearlo en otro departamento, usa{" "}
             <Link href="/departamentos" className="text-teal hover:underline">
