@@ -1,14 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useProjectContext } from "@/components/ProjectProvider";
 
 type ProjectOption = { id: string; name: string; slug: string; role: "ADMIN" | "USER" | "MONITOR" };
 
 export default function ProyectosPage() {
-  const { projectId: activeProjectId } = useProjectContext();
+  const { projectId: activeProjectId, role } = useProjectContext();
+  const isAdmin = role === "ADMIN";
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const newNameRef = useRef<HTMLInputElement>(null);
+
+  // Llegando desde "+ Nuevo proyecto" del menú, deja el cursor listo.
+  useEffect(() => {
+    if (isAdmin && window.location.hash === "#nuevo") newNameRef.current?.focus();
+  }, [isAdmin]);
+
+  async function createProject(e: React.FormEvent) {
+    e.preventDefault();
+    setCreateError(null);
+    if (!newName.trim()) {
+      setCreateError("Ponle un nombre al proyecto");
+      return;
+    }
+    setCreating(true);
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setCreateError(data.error || "No se pudo crear el proyecto");
+      setCreating(false);
+      return;
+    }
+    const project = (await res.json()) as { id: string };
+    await switchProject(project.id);
+  }
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
@@ -136,12 +169,42 @@ export default function ProyectosPage() {
         )}
       </div>
 
-      <Link
-        href="/departamentos"
-        className="block text-center bg-tealDim text-teal border border-teal/30 rounded-2xl p-4 text-sm font-semibold hover:bg-teal/20 transition"
-      >
-        + Crear proyecto nuevo
-      </Link>
+      {isAdmin ? (
+        <form id="nuevo" onSubmit={createProject} className="bg-panel border border-border rounded-2xl p-4">
+          <h2 className="text-xs font-semibold font-display mb-2.5">+ Crear proyecto nuevo</h2>
+          <div className="flex gap-2 flex-wrap">
+            <input
+              ref={newNameRef}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Ej. Auditoría de inventario 2026"
+              className="flex-1 min-w-[220px] bg-panel2 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue"
+            />
+            <button
+              type="submit"
+              disabled={creating}
+              className="bg-tealDim text-teal border border-teal/30 rounded-lg px-4 py-2 text-sm font-semibold hover:bg-teal/20 disabled:opacity-50"
+            >
+              {creating ? "Creando..." : "Crear"}
+            </button>
+          </div>
+          <p className="text-[11px] text-muted mt-2">
+            Se crea en el mismo departamento que el proyecto activo. Para crearlo en otro departamento, usa{" "}
+            <Link href="/departamentos" className="text-teal hover:underline">
+              Departamentos
+            </Link>
+            .
+          </p>
+          {createError && <p className="text-xs text-red mt-2">{createError}</p>}
+        </form>
+      ) : (
+        <Link
+          href="/departamentos"
+          className="block text-center bg-tealDim text-teal border border-teal/30 rounded-2xl p-4 text-sm font-semibold hover:bg-teal/20 transition"
+        >
+          + Crear proyecto nuevo
+        </Link>
+      )}
     </div>
   );
 }

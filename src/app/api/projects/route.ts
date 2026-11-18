@@ -2,9 +2,36 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getProjectContext } from "@/lib/projectContext";
+import { createProjectInDepartment } from "@/lib/createProject";
 
-// Crear proyectos nuevos ahora requiere pertenecer a un Departamento — ver
-// POST /api/departments/[id]/projects.
+// Crear un proyecto desde el proyecto activo: un ADMIN de ese proyecto (o un
+// super admin) puede crear uno nuevo en el MISMO departamento sin ingresar la
+// contraseña del departamento. Para crear en otro departamento sigue haciendo
+// falta desbloquearlo — ver POST /api/departments/[id]/projects.
+export async function POST(req: Request) {
+  const ctx = await getProjectContext();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (ctx.role !== "ADMIN" && !ctx.isSuperAdmin) {
+    return NextResponse.json({ error: "Solo un administrador puede crear proyectos" }, { status: 403 });
+  }
+
+  const body = (await req.json().catch(() => ({}))) as { name?: unknown };
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (!name) return NextResponse.json({ error: "El nombre del proyecto es obligatorio" }, { status: 400 });
+  if (name.length > 120) return NextResponse.json({ error: "El nombre es demasiado largo" }, { status: 400 });
+
+  const current = await prisma.project.findUnique({
+    where: { id: ctx.projectId },
+    select: { department: { select: { id: true, active: true } } },
+  });
+  if (!current?.department.active) {
+    return NextResponse.json({ error: "El departamento de este proyecto no está activo" }, { status: 400 });
+  }
+
+  return NextResponse.json(await createProjectInDepartment(current.department.id, ctx.userId, name));
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });

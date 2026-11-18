@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasDepartmentAccess } from "@/lib/departmentContext";
-import { ensureDefaultChecklistCatalog } from "@/lib/storeChecklist";
-import { slugify } from "@/lib/slug";
+import { createProjectInDepartment } from "@/lib/createProject";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -48,41 +47,5 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "El nombre del proyecto es obligatorio" }, { status: 400 });
   }
 
-  const base = slugify(name.trim());
-  let slug = base;
-  let n = 1;
-  while (await prisma.project.findUnique({ where: { slug } })) {
-    n++;
-    slug = `${base}-${n}`;
-  }
-
-  const project = await prisma.project.create({
-    data: {
-      name: name.trim(),
-      slug,
-      departmentId: department.id,
-      createdById: session.user.id,
-      members: {
-        create: { userId: session.user.id, role: "ADMIN" },
-      },
-    },
-  });
-
-  await ensureDefaultChecklistCatalog(project.id);
-
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { lastActiveProjectId: project.id },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      userId: session.user.id,
-      projectId: project.id,
-      accion: "PROYECTO_CREADO",
-      detalle: project.name,
-    },
-  });
-
-  return NextResponse.json({ id: project.id, name: project.name, slug: project.slug, role: "ADMIN" });
+  return NextResponse.json(await createProjectInDepartment(department.id, session.user.id, name.trim()));
 }

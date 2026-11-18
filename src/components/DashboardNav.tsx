@@ -106,7 +106,7 @@ export default function DashboardNav({
                     Administrar proyectos
                   </Link>
                   <Link
-                    href="/departamentos"
+                    href={role === "ADMIN" ? "/dashboard/proyectos#nuevo" : "/departamentos"}
                     onClick={() => setShowSwitcher(false)}
                     className="block text-xs px-2 py-1.5 rounded-md text-teal hover:bg-panel transition"
                   >
